@@ -1,5 +1,5 @@
 <?php
-// usuarios.php - Gestión de usuarios (con CSRF)
+// usuarios.php - Gestión de usuarios (con CSRF) - VERSIÓN 3.2
 require_once 'config.php';
 require_once 'functions.php';
 requireAuth();
@@ -23,9 +23,11 @@ if (($_POST['action'] ?? '') == 'crear_usuario') {
             $password = $_POST['password'];
             $confirm = $_POST['confirm_password'];
 
-            if (!validarCedulaVenezolana($cedula)) throw new Exception("Cédula inválida.");
+            $validacion = validarCedulaVenezolana($cedula);
+            if ($validacion !== true) throw new Exception(is_string($validacion) ? $validacion : "Cédula inválida.");
             if (empty($nombres) || empty($apellidos)) throw new Exception("Nombres y apellidos obligatorios.");
             if (!validarEmail($email)) throw new Exception("Email inválido.");
+            if ($telefono && !validarTelefonoVenezolano($telefono)) throw new Exception("Teléfono inválido. Use el formato 0412-1234567");
             if (strlen($password) < 6) throw new Exception("La contraseña debe tener al menos 6 caracteres.");
             if ($password !== $confirm) throw new Exception("Las contraseñas no coinciden.");
             if (!in_array($rol, ['admin','docente','secretario'])) throw new Exception("Rol no válido.");
@@ -64,43 +66,85 @@ $usuarios = $db->query("SELECT * FROM usuarios WHERE activo = 1 ORDER BY apellid
 ?>
 <!DOCTYPE html>
 <html lang="es">
-<head><meta charset="UTF-8"><title>Gestión de Usuarios</title><link rel="stylesheet" href="<?php echo APP_URL; ?>/assets/css/styles.css"><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"></head>
+<head>
+    <meta charset="UTF-8">
+    <title>Gestión de Usuarios - <?php echo APP_NAME; ?></title>
+    <link rel="stylesheet" href="<?php echo APP_URL; ?>/assets/css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
 <body>
 <div class="dashboard-container">
     <?php echo getSidebar('usuarios'); ?>
     <main class="main-content">
-        <header class="main-header"><h1><i class="fas fa-users-cog"></i> Gestión de Usuarios</h1><div class="header-actions"><button class="btn btn-primary" onclick="abrirModalNuevoUsuario()"><i class="fas fa-user-plus"></i> Nuevo Usuario</button></div></header>
+        <header class="main-header">
+            <h1><i class="fas fa-users-cog"></i> Gestión de Usuarios</h1>
+            <div class="header-actions">
+                <button class="btn btn-primary" onclick="abrirModalNuevoUsuario()">
+                    <i class="fas fa-user-plus"></i> Nuevo Usuario
+                </button>
+            </div>
+        </header>
         <div class="content-container">
             <?php if ($message): ?><div class="alert alert-success"><?php echo $message; ?></div><?php endif; ?>
             <?php if ($error): ?><div class="alert alert-danger"><?php echo $error; ?></div><?php endif; ?>
+            
             <div class="card">
                 <div class="card-header"><h2>Listado de Usuarios</h2></div>
                 <div class="card-body">
                     <?php if (count($usuarios) > 0): ?>
                     <div class="table-responsive">
-                        <table class="data-table"><thead><tr><th>Cédula</th><th>Nombres y Apellidos</th><th>Email</th><th>Teléfono</th><th>Rol</th><th>Acciones</th></tr></thead>
-                        <tbody>
-                        <?php foreach ($usuarios as $user): $esActual = ($user['id'] == $_SESSION['usuario_id']); ?>
-                        <tr><td><strong><?php echo htmlspecialchars($user['cedula']); ?></strong></td><td><?php echo htmlspecialchars($user['apellidos'].', '.$user['nombres']); ?> <?php if($esActual): ?><span class="badge badge-info">Tú</span><?php endif; ?></td><td><?php echo htmlspecialchars($user['email']); ?></td><td><?php echo htmlspecialchars($user['telefono'] ?: 'N/A'); ?></td><td><span class="badge <?php echo $user['rol']=='admin'?'badge-danger':($user['rol']=='docente'?'badge-warning':'badge-info'); ?>"><?php echo ucfirst($user['rol']); ?></span></td>
-                        <td class="actions">
-                            <a href="editar_usuario.php?id=<?php echo $user['id']; ?>" class="btn btn-sm btn-info"><i class="fas fa-edit"></i> Editar</a>
-                            <?php if(!$esActual): ?>
-                            <form method="POST" style="display:inline;" onsubmit="return confirm('¿Eliminar este usuario?')">
-                                <input type="hidden" name="action" value="eliminar_usuario">
-                                <input type="hidden" name="id" value="<?php echo $user['id']; ?>">
-                                <input type="hidden" name="csrf_token" value="<?php echo generateCSRFToken(); ?>">
-                                <button type="submit" class="btn btn-sm btn-danger"><i class="fas fa-trash"></i> Eliminar</button>
-                            </form>
-                            <?php else: ?>
-                            <button class="btn btn-sm btn-secondary" disabled><i class="fas fa-ban"></i> No disponible</button>
-                            <?php endif; ?>
-                        </td>
-                        </tr>
-                        <?php endforeach; ?>
-                        </tbody></table>
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Cédula</th>
+                                    <th>Nombres y Apellidos</th>
+                                    <th>Email</th>
+                                    <th>Teléfono</th>
+                                    <th>Rol</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                            <?php foreach ($usuarios as $user): $esActual = ($user['id'] == $_SESSION['usuario_id']); ?>
+                            <tr>
+                                <td><strong><?php echo htmlspecialchars($user['cedula']); ?></strong></td>
+                                <td>
+                                    <?php echo htmlspecialchars($user['apellidos'].', '.$user['nombres']); ?>
+                                    <?php if($esActual): ?><span class="badge badge-info">Tú</span><?php endif; ?>
+                                </td>
+                                <td><?php echo htmlspecialchars($user['email']); ?></td>
+                                <td><?php echo htmlspecialchars($user['telefono'] ?: 'N/A'); ?></td>
+                                <td>
+                                    <span class="badge <?php echo $user['rol']=='admin'?'badge-danger':($user['rol']=='docente'?'badge-warning':'badge-info'); ?>">
+                                        <?php echo ucfirst($user['rol']); ?>
+                                    </span>
+                                </td>
+                                <td class="actions">
+                                    <a href="editar_usuario.php?id=<?php echo $user['id']; ?>" class="btn btn-sm btn-info">
+                                        <i class="fas fa-edit"></i> Editar
+                                    </a>
+                                    <?php if(!$esActual): ?>
+                                    <form method="POST" style="display:inline;" onsubmit="return confirm('¿Eliminar este usuario?')">
+                                        <input type="hidden" name="action" value="eliminar_usuario">
+                                        <input type="hidden" name="id" value="<?php echo $user['id']; ?>">
+                                        <input type="hidden" name="csrf_token" value="<?php echo generateCSRFToken(); ?>">
+                                        <button type="submit" class="btn btn-sm btn-danger"><i class="fas fa-trash"></i> Eliminar</button>
+                                    </form>
+                                    <?php else: ?>
+                                    <button class="btn btn-sm btn-secondary" disabled><i class="fas fa-ban"></i> No disponible</button>
+                                    <?php endif; ?>
+                                </td>
+                            </tr>
+                            <?php endforeach; ?>
+                            </tbody>
+                        </table>
                     </div>
                     <?php else: ?>
-                    <div class="empty-state"><i class="fas fa-users fa-4x"></i><h3>No hay usuarios registrados</h3><button class="btn btn-primary" onclick="abrirModalNuevoUsuario()">Agregar Primer Usuario</button></div>
+                    <div class="empty-state">
+                        <i class="fas fa-users fa-4x"></i>
+                        <h3>No hay usuarios registrados</h3>
+                        <button class="btn btn-primary" onclick="abrirModalNuevoUsuario()">Agregar Primer Usuario</button>
+                    </div>
                     <?php endif; ?>
                 </div>
             </div>
@@ -118,16 +162,33 @@ $usuarios = $db->query("SELECT * FROM usuarios WHERE activo = 1 ORDER BY apellid
                     <input type="hidden" name="action" value="crear_usuario">
                     <input type="hidden" name="csrf_token" value="<?php echo generateCSRFToken(); ?>">
                     <div class="form-grid">
-                        <div class="form-group"><label>Cédula</label><input type="text" name="cedula" class="form-control cedula" required></div>
+                        <div class="form-group">
+                            <label>Cédula</label>
+                            <input type="text" name="cedula" class="form-control cedula" required placeholder="Ej: 12345678">
+                            <small class="form-text">Escribe solo los números. El sistema agregará la "V-" automáticamente.</small>
+                        </div>
                         <div class="form-group"><label>Nombres</label><input type="text" name="nombres" class="form-control" required></div>
                         <div class="form-group"><label>Apellidos</label><input type="text" name="apellidos" class="form-control" required></div>
                         <div class="form-group"><label>Email</label><input type="email" name="email" class="form-control" required></div>
-                        <div class="form-group"><label>Teléfono</label><input type="text" name="telefono" class="form-control telefono"></div>
-                        <div class="form-group"><label>Rol</label><select name="rol" class="form-control" required><option value="docente">Docente</option><option value="secretario">Secretario</option><option value="admin">Administrador</option></select></div>
+                        <div class="form-group">
+                            <label>Teléfono</label>
+                            <input type="text" name="telefono" class="form-control telefono" placeholder="0412-1234567">
+                        </div>
+                        <div class="form-group">
+                            <label>Rol</label>
+                            <select name="rol" class="form-control" required>
+                                <option value="docente">Docente</option>
+                                <option value="secretario">Secretario</option>
+                                <option value="admin">Administrador</option>
+                            </select>
+                        </div>
                         <div class="form-group"><label>Contraseña</label><input type="password" name="password" class="form-control" minlength="6" required></div>
                         <div class="form-group"><label>Confirmar</label><input type="password" name="confirm_password" class="form-control" required></div>
                     </div>
-                    <div class="form-actions"><button type="submit" class="btn btn-primary">Guardar Usuario</button><button type="reset" class="btn btn-secondary" onclick="cerrarModalNuevoUsuario()">Cancelar</button></div>
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-primary">Guardar Usuario</button>
+                        <button type="reset" class="btn btn-secondary" onclick="cerrarModalNuevoUsuario()">Cancelar</button>
+                    </div>
                 </form>
             </div>
         </div>

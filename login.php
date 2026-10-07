@@ -1,8 +1,7 @@
 <?php
-// login.php - Sistema de autenticación con seguridad mejorada
+// login.php - Sistema de autenticación con seguridad mejorada (VERSIÓN 3.2)
 require_once 'config.php';
 
-// Si ya está autenticado, redirigir al dashboard
 if (isset($_SESSION['usuario_id'])) {
     header('Location: dashboard.php');
     exit;
@@ -34,70 +33,58 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
             $error = 'Error de conexión a la base de datos';
         } else {
             try {
-                // Verificar si la IP está bloqueada
                 $stmt = $db->prepare("SELECT bloqueado_hasta FROM login_attempts WHERE ip = ? ORDER BY ultimo_intento DESC LIMIT 1");
                 $stmt->execute([$ip]);
                 $bloqueo = $stmt->fetch();
                 if ($bloqueo && $bloqueo['bloqueado_hasta'] && strtotime($bloqueo['bloqueado_hasta']) > time()) {
                     $error = 'Demasiados intentos fallidos. Intente nuevamente después de 15 minutos.';
                 } else {
-                    // Buscar usuario por username o cédula
-                    $stmt = $db->prepare("SELECT id, username, cedula, password, nombres, apellidos, rol, activo FROM usuarios WHERE (username = ? OR cedula = ?) AND activo = 1");
-                    $stmt->execute([$username, $username]);
+                    // Buscar usuario por username o cédula (aceptando ambos formatos)
+                    $cedula_formateada = formatearCedulaParaBD($username);
+                    $stmt = $db->prepare("
+                        SELECT id, username, cedula, password, nombres, apellidos, rol, activo 
+                        FROM usuarios 
+                        WHERE (username = ? OR cedula = ? OR cedula = ?) AND activo = 1
+                    ");
+                    $stmt->execute([$username, $username, $cedula_formateada]);
                     $usuario = $stmt->fetch();
 
                     if ($usuario && password_verify($password, $usuario['password'])) {
-                        // Login exitoso: regenerar sesión y limpiar intentos
-                       /* session_regenerate_id(true);
+                        session_regenerate_id(true);
                         $_SESSION['usuario_id'] = $usuario['id'];
                         $_SESSION['usuario_nombre'] = $usuario['nombres'] . ' ' . $usuario['apellidos'];
                         $_SESSION['usuario_rol'] = $usuario['rol'];
                         $_SESSION['last_activity'] = time();
-                        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));*/
-                        // Login exitoso: regenerar sesión y limpiar intentos
-                        // Login exitoso: regenerar sesión y limpiar intentos
-// Login exitoso: regenerar sesión y limpiar intentos
-                    session_regenerate_id(true);
-                    $_SESSION['usuario_id'] = $usuario['id'];
-                    $_SESSION['usuario_nombre'] = $usuario['nombres'] . ' ' . $usuario['apellidos'];
-                    $_SESSION['usuario_rol'] = $usuario['rol'];
-                    $_SESSION['last_activity'] = time();
-                    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+                        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 
-                    // Eliminar intentos fallidos de esta IP
-                    $stmt = $db->prepare("DELETE FROM login_attempts WHERE ip = ?");
-                    $stmt->execute([$ip]);
+                        $stmt = $db->prepare("DELETE FROM login_attempts WHERE ip = ?");
+                        $stmt->execute([$ip]);
 
-                    // Actualizar último acceso
-                    $updateStmt = $db->prepare("UPDATE usuarios SET ultimo_acceso = NOW() WHERE id = ?");
-                    $updateStmt->execute([$usuario['id']]);
+                        $updateStmt = $db->prepare("UPDATE usuarios SET ultimo_acceso = NOW() WHERE id = ?");
+                        $updateStmt->execute([$usuario['id']]);
 
-                    registrarLog('login_exitoso', 'usuarios', $usuario['id'], "Usuario {$usuario['username']} inició sesión");
+                        registrarLog('login_exitoso', 'usuarios', $usuario['id'], "Usuario {$usuario['username']} inició sesión");
 
-                    // Redirigir según rol
-                    switch ($usuario['rol']) {
-                        case 'admin':
-                        case 'docente':
-                        case 'secretario':
-                            header('Location: dashboard.php');
-                            break;
-                        case 'estudiante':
-                            header('Location: panel_estudiante.php');
-                            break;
-                        case 'representante':
-                            header('Location: panel_representante.php');
-                            break;
-                        default:
-                            header('Location: dashboard.php');
-                    }
-                    exit;
-                    
+                        switch ($usuario['rol']) {
+                            case 'admin':
+                            case 'docente':
+                            case 'secretario':
+                                header('Location: dashboard.php');
+                                break;
+                            case 'estudiante':
+                                header('Location: panel_estudiante.php');
+                                break;
+                            case 'representante':
+                                header('Location: panel_representante.php');
+                                break;
+                            default:
+                                header('Location: dashboard.php');
+                        }
+                        exit;
                     } else {
-                        // Login fallido: registrar intento
                         $stmt = $db->prepare("INSERT INTO login_attempts (ip, usuario, intentos, ultimo_intento) VALUES (?, ?, 1, NOW()) ON DUPLICATE KEY UPDATE intentos = intentos + 1, ultimo_intento = NOW()");
                         $stmt->execute([$ip, $username]);
                         
-                        // Verificar si superó el límite
                         $stmt = $db->prepare("SELECT intentos FROM login_attempts WHERE ip = ?");
                         $stmt->execute([$ip]);
                         $intentos = $stmt->fetch();
@@ -120,7 +107,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
 }
 
 // =========================================================
-// PROCESAR REGISTRO DE NUEVO USUARIO (con CSRF)
+// PROCESAR REGISTRO DE NUEVO USUARIO
 // =========================================================
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['register'])) {
     $nombres = formatearNombrePropio($_POST['nombres'] ?? '');
@@ -140,8 +127,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['register'])) {
         $error = 'La contraseña debe tener al menos 6 caracteres';
     } elseif (!validarEmail($email)) {
         $error = 'El email no es válido';
-    } elseif (!validarCedulaVenezolana($cedula)) {
-        $error = 'La cédula debe tener formato V-12345678';
+    } elseif (($validacion = validarCedulaVenezolana($cedula)) !== true) {
+        $error = is_string($validacion) ? $validacion : 'Cédula inválida';
     } else {
         $db = getDBConnection();
         if ($db) {
@@ -189,7 +176,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['recovery'])) {
                     $updateStmt = $db->prepare("UPDATE usuarios SET token_recuperacion = ?, token_expiracion = ? WHERE email = ?");
                     $updateStmt->execute([$token, $expiracion, $email]);
                     $reset_link = APP_URL . "/reset_password.php?token=$token";
-                    // En producción enviar por email
                     $success = "Se ha enviado un enlace de recuperación a tu email.<br><small>Enlace: <a href='$reset_link'>$reset_link</a></small>";
                 } else {
                     $error = 'No existe una cuenta activa con ese email';
@@ -263,13 +249,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['recovery'])) {
             <div class="alert alert-warning"><i class="fas fa-clock"></i> La sesión ha expirado. Por favor ingrese nuevamente.</div>
         <?php endif; ?>
         
-        <!-- Formulario de Login -->
         <div id="login-form" <?php echo ($show_register || $show_recovery) ? 'class="hidden"' : ''; ?>>
             <form method="POST" class="login-form">
                 <input type="hidden" name="login" value="1">
                 <div class="form-group">
                     <label for="username">Usuario o Cédula</label>
-                    <input type="text" id="username" name="username" required class="form-control" placeholder="Ingrese su usuario o cédula (V-12345678)" value="<?php echo htmlspecialchars($_POST['username'] ?? ''); ?>">
+                    <input type="text" id="username" name="username" required class="form-control" placeholder="Ingrese su usuario o cédula (12345678)" value="<?php echo htmlspecialchars($_POST['username'] ?? ''); ?>">
                 </div>
                 <div class="form-group">
                     <label for="password">Contraseña</label>
@@ -282,7 +267,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['recovery'])) {
                         <div class="mt-2">
                             <div><strong>Admin:</strong> admin / password</div>
                             <div><strong>Docente:</strong> jcastro / password</div>
-                            <div><strong>Por cédula:</strong> V-12345678 / password</div>
+                            <div><strong>Por cédula:</strong> 12345678 / password</div>
                         </div>
                     </details>
                 </div>
@@ -293,13 +278,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['recovery'])) {
             </div>
         </div>
         
-        <!-- Formulario de Registro -->
         <div id="register-form" <?php echo $show_register ? '' : 'class="hidden"'; ?>>
             <form method="POST" class="login-form">
                 <input type="hidden" name="register" value="1">
                 <div class="form-group"><label>Nombres</label><input type="text" name="nombres" required class="form-control" placeholder="Ingrese sus nombres" value="<?php echo htmlspecialchars($_POST['nombres'] ?? ''); ?>"></div>
                 <div class="form-group"><label>Apellidos</label><input type="text" name="apellidos" required class="form-control" placeholder="Ingrese sus apellidos" value="<?php echo htmlspecialchars($_POST['apellidos'] ?? ''); ?>"></div>
-                <div class="form-group"><label>Cédula</label><input type="text" name="cedula" required class="form-control cedula" placeholder="V-12345678" value="<?php echo htmlspecialchars($_POST['cedula'] ?? ''); ?>"></div>
+                <div class="form-group">
+                    <label>Cédula</label>
+                    <input type="text" name="cedula" required class="form-control cedula" placeholder="12345678" value="<?php echo htmlspecialchars($_POST['cedula'] ?? ''); ?>">
+                    <small class="form-text">Escribe solo los números. El sistema agregará la "V-" automáticamente.</small>
+                </div>
                 <div class="form-group"><label>Usuario</label><input type="text" name="username" required class="form-control" placeholder="Elija un nombre de usuario" value="<?php echo htmlspecialchars($_POST['username'] ?? ''); ?>"></div>
                 <div class="form-group"><label>Email</label><input type="email" name="email" required class="form-control" placeholder="Ingrese su email" value="<?php echo htmlspecialchars($_POST['email'] ?? ''); ?>"></div>
                 <div class="form-group"><label>Teléfono (opcional)</label><input type="text" name="telefono" class="form-control telefono" placeholder="0412-1234567" value="<?php echo htmlspecialchars($_POST['telefono'] ?? ''); ?>"></div>
@@ -310,7 +298,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['recovery'])) {
             </form>
         </div>
         
-        <!-- Formulario de Recuperación -->
         <div id="recovery-form" <?php echo $show_recovery ? '' : 'class="hidden"'; ?>>
             <form method="POST" class="login-form">
                 <input type="hidden" name="recovery" value="1">
@@ -325,7 +312,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['recovery'])) {
         </div>
     </div>
 
-    <!-- Modal Nosotros -->
     <div id="modal-nosotros" class="modal">
         <div class="modal-content">
             <span class="modal-close" onclick="document.getElementById('modal-nosotros').style.display='none'">&times;</span>

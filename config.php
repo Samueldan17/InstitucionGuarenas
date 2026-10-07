@@ -1,5 +1,5 @@
 <?php
-// config.php - Configuración y funciones del sistema (VERSIÓN 3.0 - SIGEB-G)
+// config.php - Configuración y funciones del sistema (VERSIÓN 3.2 - SIGEB-G)
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
@@ -17,20 +17,14 @@ define('DB_CHARSET', 'utf8mb4');
 // 2. CONFIGURACIÓN DE LA APLICACIÓN (URL DINÁMICA)
 // =========================================================
 define('APP_NAME', 'U.E.N. Guarenas');
-define('APP_VERSION', '3.0');
+define('APP_VERSION', '3.2');
 
-// URL base dinámica (detecta automáticamente el entorno)
-$protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' ? 'https' : 'http';
-$host = $_SERVER['HTTP_HOST'];
-$script_dir = rtrim(dirname($_SERVER['SCRIPT_NAME']), '/\\');
-if ($script_dir == '' || $script_dir == '/') {
-    $base_url = $protocol . '://' . $host;
-} else {
-    $base_url = $protocol . '://' . $host . $script_dir;
-}
-define('APP_URL', $base_url);
+$protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+$host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+$base_path = '/InstitucionGuarenas';
+define('APP_URL', $protocol . '://' . $host . $base_path);
 
-// --- LOGO CON VERIFICACIÓN Y FALLBACK (NUEVO DISEÑO) ---
+// --- LOGO CON VERIFICACIÓN Y FALLBACK ---
 $logo_fallback_svg = 'data:image/svg+xml;charset=utf-8,' . rawurlencode('
 <svg xmlns="http://www.w3.org/2000/svg" width="200" height="100" viewBox="0 0 200 100">
   <rect width="200" height="100" fill="#2c3e50"/>
@@ -39,27 +33,22 @@ $logo_fallback_svg = 'data:image/svg+xml;charset=utf-8,' . rawurlencode('
 </svg>');
 
 $logo_path = __DIR__ . '/assets/img/logo.png';
-
-// Si el archivo existe y es una imagen válida, usamos la ruta; si no, usamos el fallback SVG
 if (file_exists($logo_path) && @getimagesize($logo_path) !== false) {
     define('APP_LOGO', APP_URL . '/assets/img/logo.png');
 } else {
     define('APP_LOGO', $logo_fallback_svg);
 }
-
-// Constante de fallback para usar en los atributos onerror
 define('APP_LOGO_FALLBACK', $logo_fallback_svg);
-// ---------------------------------------------------------
 
 // =========================================================
 // 3. SEGURIDAD
 // =========================================================
 define('MAX_LOGIN_ATTEMPTS', 5);
-define('LOGIN_BLOCK_TIME', 900); // 15 minutos en segundos
+define('LOGIN_BLOCK_TIME', 900); // 15 minutos
 define('SESSION_TIMEOUT', 3600); // 1 hora
 
 // =========================================================
-// 4. CONEXIÓN A LA BASE DE DATOS
+// 4. CONEXIÓN A LA BASE DE DATOS (PDO)
 // =========================================================
 function getDBConnection() {
     static $pdo = null;
@@ -79,7 +68,7 @@ function getDBConnection() {
 }
 
 // =========================================================
-// 5. MANEJO GLOBAL DE EXCEPCIONES (oculta detalles en prod)
+// 5. MANEJO GLOBAL DE EXCEPCIONES
 // =========================================================
 set_exception_handler(function($e) {
     error_log("Excepción no capturada: " . $e->getMessage() . " en " . $e->getFile() . ":" . $e->getLine());
@@ -87,20 +76,19 @@ set_exception_handler(function($e) {
         echo "<h1>Error interno del servidor</h1><p>Por favor, intente más tarde.</p>";
     } else {
         http_response_code(500);
-        jsonResponse(false, 'Ha ocurrido un error interno. Por favor, intente más tarde.');
+        jsonResponse(false, 'Ha ocurrido un error interno. Por favor, intente más tarde.', [], 500, true);
     }
     exit;
 });
 
 // =========================================================
-// 6. AUTENTICACIÓN
+// 6. AUTENTICACIÓN Y ROLES
 // =========================================================
 function requireAuth() {
     if (!isset($_SESSION['usuario_id']) || !isset($_SESSION['usuario_nombre'])) {
         header('Location: ' . APP_URL . '/login.php');
         exit;
     }
-    // Verificar tiempo de sesión
     if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity'] > SESSION_TIMEOUT)) {
         session_unset();
         session_destroy();
@@ -130,14 +118,11 @@ function generateCSRFToken() {
 }
 
 function validateCSRFToken($token) {
-    if (!isset($_SESSION['csrf_token']) || $token !== $_SESSION['csrf_token']) {
-        return false;
-    }
-    return true;
+    return isset($_SESSION['csrf_token']) && hash_equals($_SESSION['csrf_token'], $token);
 }
 
 // =========================================================
-// 8. SANITIZACIÓN Y VALIDACIONES
+// 8. SANITIZACIÓN Y RESPUESTAS
 // =========================================================
 function sanitize($data) {
     if (is_array($data)) {
@@ -146,7 +131,7 @@ function sanitize($data) {
     return htmlspecialchars(trim($data), ENT_QUOTES, 'UTF-8');
 }
 
-function jsonResponse($success, $message = '', $data = [], $statusCode = 200) {
+function jsonResponse($success, $message = '', $data = [], $statusCode = 200, $exit = true) {
     http_response_code($statusCode);
     header('Content-Type: application/json');
     echo json_encode([
@@ -154,15 +139,21 @@ function jsonResponse($success, $message = '', $data = [], $statusCode = 200) {
         'message' => $message,
         'data' => $data
     ]);
-    exit;
+    if ($exit) exit;
 }
 
 // =========================================================
-// 9. VALIDACIONES VENEZOLANAS
+// 9. VALIDACIONES VENEZOLANAS (MEJORADAS)
 // =========================================================
 function validarCedulaVenezolana($cedula) {
     $cedula = strtoupper(trim($cedula));
-    return preg_match('/^[VE]-\d{5,8}$/', $cedula) === 1;
+    if (!preg_match('/^[VE]-/', $cedula)) {
+        $cedula = 'V-' . $cedula;
+    }
+    if (!preg_match('/^[VE]-\d{6,9}$/', $cedula)) {
+        return "La cédula debe tener formato V-12345678 o 12345678";
+    }
+    return true;
 }
 
 function validarEmail($email) {
@@ -171,8 +162,8 @@ function validarEmail($email) {
 
 function validarTelefonoVenezolano($telefono) {
     $telefono = trim($telefono);
-    if (empty($telefono)) return true; // opcional
-    return preg_match('/^04(12|14|16|24|26|28)-\d{7}$/', $telefono) === 1;
+    if (empty($telefono)) return true;
+    return preg_match('/^0(412|414|416|424|426|428)[-.]?\d{7}$/', $telefono) === 1;
 }
 
 function validarRangoNota($nota) {
@@ -181,7 +172,11 @@ function validarRangoNota($nota) {
 }
 
 function formatearCedulaParaBD($cedula) {
-    return strtoupper(trim($cedula));
+    $cedula = strtoupper(trim($cedula));
+    if (!preg_match('/^[VE]-/', $cedula)) {
+        $cedula = 'V-' . $cedula;
+    }
+    return preg_replace('/[^VE0-9-]/', '', $cedula);
 }
 
 function formatearNombrePropio($nombre) {
@@ -209,7 +204,6 @@ function registrarLog($accion, $tabla = null, $registro_id = null, $detalles = n
 // =========================================================
 // 11. SIDEBAR
 // =========================================================
-
 function getSidebar($currentPage = '') {
     $rol = $_SESSION['usuario_rol'] ?? 'guest';
     $nombre = $_SESSION['usuario_nombre'] ?? 'Usuario';
@@ -225,7 +219,6 @@ function getSidebar($currentPage = '') {
         <nav class="sidebar-nav">
             <ul>';
     
-    // Menú para estudiantes
     if ($rol === 'estudiante') {
         $sidebar .= '
             <li class="nav-item ' . ($currentPage == 'estudiante' ? 'active' : '') . '">
@@ -234,9 +227,7 @@ function getSidebar($currentPage = '') {
             <li class="nav-item">
                 <a href="logout.php" class="nav-link"><i class="fas fa-sign-out-alt"></i><span>Cerrar Sesión</span></a>
             </li>';
-    }
-    // Menú para representantes
-    elseif ($rol === 'representante') {
+    } elseif ($rol === 'representante') {
         $sidebar .= '
             <li class="nav-item ' . ($currentPage == 'representante' ? 'active' : '') . '">
                 <a href="panel_representante.php" class="nav-link"><i class="fas fa-home"></i><span>Mi Panel</span></a>
@@ -244,9 +235,7 @@ function getSidebar($currentPage = '') {
             <li class="nav-item">
                 <a href="logout.php" class="nav-link"><i class="fas fa-sign-out-alt"></i><span>Cerrar Sesión</span></a>
             </li>';
-    }
-    // Menú para admin, docente, secretario (el actual)
-    else {
+    } else {
         $sidebar .= '
             <li class="nav-item ' . ($currentPage == 'dashboard' ? 'active' : '') . '">
                 <a href="dashboard.php" class="nav-link"><i class="fas fa-tachometer-alt"></i><span>Dashboard</span></a>
@@ -270,7 +259,6 @@ function getSidebar($currentPage = '') {
                 <a href="reportes.php" class="nav-link"><i class="fas fa-chart-bar"></i><span>Reportes</span></a>
             </li>';
         
-        // Opciones solo para admin
         if ($rol === 'admin') {
             $sidebar .= '
                 <li class="nav-item ' . ($currentPage == 'usuarios' ? 'active' : '') . '">
