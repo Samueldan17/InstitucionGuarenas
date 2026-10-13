@@ -1,5 +1,5 @@
 <?php
-// estudiantes.php - Gestión de Estudiantes (VERSIÓN 3.4)
+// estudiantes.php - Gestión de Estudiantes (VERSIÓN 3.5 - con creación de usuarios)
 require_once 'config.php';
 require_once 'functions.php';
 requireAuth();
@@ -59,6 +59,32 @@ if (($_POST['action'] ?? '') == 'crear_estudiante') {
 }
 
 // =========================================================
+// CREAR USUARIO PARA ESTUDIANTE
+// =========================================================
+if (($_POST['action'] ?? '') == 'crear_usuario_estudiante' && isset($_POST['estudiante_id'])) {
+    if (!validateCSRFToken($_POST['csrf_token'] ?? '')) {
+        $error = "Token de seguridad inválido.";
+    } else {
+        $estudiante_id = (int)$_POST['estudiante_id'];
+        try {
+            $usuario_id = crearUsuarioEstudiante($estudiante_id);
+            if ($usuario_id) {
+                $stmt = $db->prepare("SELECT cedula, nombres, apellidos FROM estudiantes WHERE id = ?");
+                $stmt->execute([$estudiante_id]);
+                $est = $stmt->fetch();
+                $message = "✅ Usuario creado para {$est['nombres']} {$est['apellidos']}. Usuario y contraseña inicial: {$est['cedula']}";
+            } else {
+                $error = "❌ No se pudo crear el usuario. Verifica que el estudiante no tenga ya un usuario o que la cédula no esté en uso.";
+            }
+        } catch (Exception $e) {
+            $error = "❌ Error: " . $e->getMessage();
+        }
+    }
+    header("Location: estudiantes.php?message=" . urlencode($message) . "&error=" . urlencode($error));
+    exit;
+}
+
+// =========================================================
 // ELIMINAR ESTUDIANTE (cambia estado a inactivo)
 // =========================================================
 if (($_POST['action'] ?? '') == 'eliminar_estudiante' && isset($_POST['id'])) {
@@ -69,7 +95,7 @@ if (($_POST['action'] ?? '') == 'eliminar_estudiante' && isset($_POST['id'])) {
         try {
             $stmt = $db->prepare("UPDATE estudiantes SET estado = 'inactivo' WHERE id = ?");
             $stmt->execute([$estudiante_id]);
-            $message = "✅ Estudiante eliminado exitosamente";
+            $message = "✅ Estudiante desactivado exitosamente";
             registrarLog('eliminar_estudiante', 'estudiantes', $estudiante_id);
         } catch (Exception $e) {
             $error = "❌ Error al eliminar estudiante: " . $e->getMessage();
@@ -88,6 +114,7 @@ $offset = ($page - 1) * $perPage;
 $filtro_grado = (int)($_GET['filtro_grado'] ?? 0);
 $filtro_seccion = (int)($_GET['filtro_seccion'] ?? 0);
 $filtro_estado = $_GET['filtro_estado'] ?? 'activo';
+$filtro_usuario = $_GET['filtro_usuario'] ?? '';
 $search = $_GET['search'] ?? '';
 
 $where = [];
@@ -105,6 +132,11 @@ if ($filtro_estado && $filtro_estado !== 'todos') {
     $where[] = "e.estado = ?";
     $params[] = $filtro_estado;
 }
+if ($filtro_usuario === 'con') {
+    $where[] = "e.usuario_id IS NOT NULL";
+} elseif ($filtro_usuario === 'sin') {
+    $where[] = "e.usuario_id IS NULL";
+}
 if ($search) {
     $where[] = "(e.nombres LIKE ? OR e.apellidos LIKE ? OR e.cedula LIKE ? OR e.nombre_representante LIKE ?)";
     $params = array_merge($params, ["%$search%", "%$search%", "%$search%", "%$search%"]);
@@ -121,7 +153,8 @@ $totalItems = $countStmt->fetchColumn();
 $totalPages = ceil($totalItems / $perPage);
 
 // Obtener estudiantes con paginación
-$query = "SELECT e.*, g.nombre as grado_nombre, s.letra as seccion_letra, s.turno, s.anio_escolar 
+$query = "SELECT e.*, g.nombre as grado_nombre, s.letra as seccion_letra, s.turno,
+          (SELECT COUNT(*) FROM representantes_estudiantes re WHERE re.estudiante_id = e.id) as total_representantes
           FROM estudiantes e 
           LEFT JOIN secciones s ON e.seccion_id = s.id 
           LEFT JOIN grados g ON s.grado_id = g.id 
@@ -139,7 +172,8 @@ $secciones = $db->query("SELECT s.id, g.nombre as grado, s.letra, s.turno FROM s
 // Estadísticas
 $totalActivos = $db->query("SELECT COUNT(*) FROM estudiantes WHERE estado = 'activo'")->fetchColumn();
 $totalInactivos = $db->query("SELECT COUNT(*) FROM estudiantes WHERE estado = 'inactivo'")->fetchColumn();
-$totalSecciones = $db->query("SELECT COUNT(*) FROM secciones WHERE activo = 1")->fetchColumn();
+$totalConUsuario = $db->query("SELECT COUNT(*) FROM estudiantes WHERE usuario_id IS NOT NULL AND estado = 'activo'")->fetchColumn();
+$totalSinUsuario = $db->query("SELECT COUNT(*) FROM estudiantes WHERE usuario_id IS NULL AND estado = 'activo'")->fetchColumn();
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -169,12 +203,16 @@ $totalSecciones = $db->query("SELECT COUNT(*) FROM secciones WHERE activo = 1")-
                     <div class="stat-info"><h3><?php echo $totalActivos; ?></h3><p>Estudiantes Activos</p></div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-icon" style="background:#e74c3c;"><i class="fas fa-user-slash"></i></div>
-                    <div class="stat-info"><h3><?php echo $totalInactivos; ?></h3><p>Estudiantes Inactivos</p></div>
+                    <div class="stat-icon" style="background:#27ae60;"><i class="fas fa-key"></i></div>
+                    <div class="stat-info"><h3><?php echo $totalConUsuario; ?></h3><p>Con Usuario Creado</p></div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-icon" style="background:var(--warning-color);"><i class="fas fa-users"></i></div>
-                    <div class="stat-info"><h3><?php echo $totalSecciones; ?></h3><p>Secciones Activas</p></div>
+                    <div class="stat-icon" style="background:#e67e22;"><i class="fas fa-user-slash"></i></div>
+                    <div class="stat-info"><h3><?php echo $totalSinUsuario; ?></h3><p>Sin Usuario</p></div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon" style="background:#e74c3c;"><i class="fas fa-user-times"></i></div>
+                    <div class="stat-info"><h3><?php echo $totalInactivos; ?></h3><p>Estudiantes Inactivos</p></div>
                 </div>
             </div>
 
@@ -185,7 +223,7 @@ $totalSecciones = $db->query("SELECT COUNT(*) FROM secciones WHERE activo = 1")-
                 <div class="card-body">
                     <!-- Filtros -->
                     <form method="GET" class="filters-form" style="margin-bottom: 1rem; display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
-                        <select name="filtro_grado" class="form-control" style="max-width: 180px;">
+                        <select name="filtro_grado" class="form-control" style="max-width: 160px;">
                             <option value="">Todos los grados</option>
                             <?php foreach($grados as $g): ?>
                                 <option value="<?php echo $g['id']; ?>" <?php echo $filtro_grado == $g['id'] ? 'selected' : ''; ?>>
@@ -194,7 +232,7 @@ $totalSecciones = $db->query("SELECT COUNT(*) FROM secciones WHERE activo = 1")-
                             <?php endforeach; ?>
                         </select>
                         
-                        <select name="filtro_seccion" class="form-control" style="max-width: 200px;">
+                        <select name="filtro_seccion" class="form-control" style="max-width: 180px;">
                             <option value="">Todas las secciones</option>
                             <?php foreach($secciones as $s): ?>
                                 <option value="<?php echo $s['id']; ?>" <?php echo $filtro_seccion == $s['id'] ? 'selected' : ''; ?>>
@@ -203,14 +241,20 @@ $totalSecciones = $db->query("SELECT COUNT(*) FROM secciones WHERE activo = 1")-
                             <?php endforeach; ?>
                         </select>
                         
-                        <select name="filtro_estado" class="form-control" style="max-width: 150px;">
+                        <select name="filtro_usuario" class="form-control" style="max-width: 180px;">
+                            <option value="">Todos (usuario)</option>
+                            <option value="con" <?php echo $filtro_usuario == 'con' ? 'selected' : ''; ?>>Con usuario</option>
+                            <option value="sin" <?php echo $filtro_usuario == 'sin' ? 'selected' : ''; ?>>Sin usuario</option>
+                        </select>
+                        
+                        <select name="filtro_estado" class="form-control" style="max-width: 130px;">
                             <option value="activo" <?php echo $filtro_estado == 'activo' ? 'selected' : ''; ?>>Activos</option>
                             <option value="inactivo" <?php echo $filtro_estado == 'inactivo' ? 'selected' : ''; ?>>Inactivos</option>
                             <option value="graduado" <?php echo $filtro_estado == 'graduado' ? 'selected' : ''; ?>>Graduados</option>
                             <option value="todos" <?php echo $filtro_estado == 'todos' ? 'selected' : ''; ?>>Todos</option>
                         </select>
                         
-                        <input type="text" name="search" value="<?php echo htmlspecialchars($search); ?>" placeholder="Buscar por nombre, cédula o representante..." class="form-control" style="max-width: 300px;">
+                        <input type="text" name="search" value="<?php echo htmlspecialchars($search); ?>" placeholder="Buscar..." class="form-control" style="max-width: 220px;">
                         
                         <button type="submit" class="btn btn-primary"><i class="fas fa-filter"></i> Filtrar</button>
                         <a href="estudiantes.php" class="btn btn-secondary"><i class="fas fa-times"></i> Limpiar</a>
@@ -224,9 +268,9 @@ $totalSecciones = $db->query("SELECT COUNT(*) FROM secciones WHERE activo = 1")-
                                     <th>Cédula</th>
                                     <th>Nombres y Apellidos</th>
                                     <th>Grado y Sección</th>
-                                    <th>Teléfono</th>
                                     <th>Email</th>
                                     <th>Representante</th>
+                                    <th>Usuario</th>
                                     <th>Estado</th>
                                     <th>Acciones</th>
                                 </tr>
@@ -238,14 +282,30 @@ $totalSecciones = $db->query("SELECT COUNT(*) FROM secciones WHERE activo = 1")-
                                     <td><?php echo htmlspecialchars($est['apellidos'] . ', ' . $est['nombres']); ?></td>
                                     <td>
                                         <?php if ($est['grado_nombre']): ?>
-                                            <?php echo htmlspecialchars($est['grado_nombre'] . ' ' . $est['seccion_letra'] . ' (' . $est['turno'] . ')'); ?>
+                                            <?php echo htmlspecialchars($est['grado_nombre'] . ' ' . $est['seccion_letra']); ?>
+                                            <small class="text-muted">(<?php echo $est['turno']; ?>)</small>
                                         <?php else: ?>
                                             <span class="text-muted">Sin sección</span>
                                         <?php endif; ?>
                                     </td>
-                                    <td><?php echo htmlspecialchars($est['telefono_contacto'] ?: 'N/A'); ?></td>
-                                    <td><?php echo htmlspecialchars($est['email'] ?: 'N/A'); ?></td>
-                                    <td><?php echo htmlspecialchars($est['nombre_representante'] ?: 'N/A'); ?></td>
+                                    <td><?php echo htmlspecialchars($est['email'] ?: '—'); ?></td>
+                                    <td>
+                                        <?php echo htmlspecialchars($est['nombre_representante'] ?: '—'); ?>
+                                        <?php if ($est['total_representantes'] > 0): ?>
+                                            <span class="badge badge-info" title="Representantes vinculados"><?php echo $est['total_representantes']; ?></span>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td>
+                                        <?php if ($est['usuario_id']): ?>
+                                            <span class="badge badge-success" title="Usuario creado">
+                                                <i class="fas fa-check"></i> Sí
+                                            </span>
+                                        <?php else: ?>
+                                            <span class="badge badge-secondary" title="Sin usuario">
+                                                <i class="fas fa-times"></i> No
+                                            </span>
+                                        <?php endif; ?>
+                                    </td>
                                     <td>
                                         <span class="badge badge-<?php echo $est['estado']=='activo'?'success':($est['estado']=='inactivo'?'danger':'info'); ?>">
                                             <?php echo ucfirst($est['estado']); ?>
@@ -253,6 +313,14 @@ $totalSecciones = $db->query("SELECT COUNT(*) FROM secciones WHERE activo = 1")-
                                     </td>
                                     <td class="actions">
                                         <a href="editar_estudiante.php?id=<?php echo $est['id']; ?>" class="btn btn-sm btn-info" title="Editar"><i class="fas fa-edit"></i></a>
+                                        <?php if (!$est['usuario_id'] && $est['estado'] == 'activo'): ?>
+                                            <form method="POST" style="display:inline;" onsubmit="return confirm('¿Crear usuario para <?php echo htmlspecialchars($est['nombres'] . ' ' . $est['apellidos']); ?>?\n\nUsuario: <?php echo $est['cedula']; ?>\nContraseña inicial: <?php echo $est['cedula']; ?>')">
+                                                <input type="hidden" name="action" value="crear_usuario_estudiante">
+                                                <input type="hidden" name="estudiante_id" value="<?php echo $est['id']; ?>">
+                                                <input type="hidden" name="csrf_token" value="<?php echo generateCSRFToken(); ?>">
+                                                <button type="submit" class="btn btn-sm btn-success" title="Crear Usuario"><i class="fas fa-key"></i> Crear Usuario</button>
+                                            </form>
+                                        <?php endif; ?>
                                         <form method="POST" style="display:inline;" onsubmit="return confirm('¿Desactivar al estudiante <?php echo htmlspecialchars($est['nombres'] . ' ' . $est['apellidos']); ?>?')">
                                             <input type="hidden" name="action" value="eliminar_estudiante">
                                             <input type="hidden" name="id" value="<?php echo $est['id']; ?>">
@@ -271,11 +339,11 @@ $totalSecciones = $db->query("SELECT COUNT(*) FROM secciones WHERE activo = 1")-
                         <div class="table-info">Mostrando <?php echo count($estudiantes); ?> de <?php echo $totalItems; ?> estudiantes</div>
                         <div class="pagination">
                             <?php if ($page > 1): ?>
-                                <a class="btn btn-secondary" href="?page=<?php echo $page-1; ?>&filtro_grado=<?php echo $filtro_grado; ?>&filtro_seccion=<?php echo $filtro_seccion; ?>&filtro_estado=<?php echo urlencode($filtro_estado); ?>&search=<?php echo urlencode($search); ?>">&laquo; Anterior</a>
+                                <a class="btn btn-secondary" href="?page=<?php echo $page-1; ?>&filtro_grado=<?php echo $filtro_grado; ?>&filtro_seccion=<?php echo $filtro_seccion; ?>&filtro_estado=<?php echo urlencode($filtro_estado); ?>&filtro_usuario=<?php echo urlencode($filtro_usuario); ?>&search=<?php echo urlencode($search); ?>">&laquo; Anterior</a>
                             <?php endif; ?>
                             <span>Página <?php echo $page; ?> de <?php echo $totalPages; ?></span>
                             <?php if ($page < $totalPages): ?>
-                                <a class="btn btn-secondary" href="?page=<?php echo $page+1; ?>&filtro_grado=<?php echo $filtro_grado; ?>&filtro_seccion=<?php echo $filtro_seccion; ?>&filtro_estado=<?php echo urlencode($filtro_estado); ?>&search=<?php echo urlencode($search); ?>">Siguiente &raquo;</a>
+                                <a class="btn btn-secondary" href="?page=<?php echo $page+1; ?>&filtro_grado=<?php echo $filtro_grado; ?>&filtro_seccion=<?php echo $filtro_seccion; ?>&filtro_estado=<?php echo urlencode($filtro_estado); ?>&filtro_usuario=<?php echo urlencode($filtro_usuario); ?>&search=<?php echo urlencode($search); ?>">Siguiente &raquo;</a>
                             <?php endif; ?>
                         </div>
                     </div>
