@@ -293,4 +293,34 @@ function crearUsuarioRepresentante($cedula, $nombres, $apellidos, $email = null,
         return false;
     }
 }
+// =========================================================
+// FUNCIONES DE CONFIGURACIÓN (agregar al final de functions.php)
+// =========================================================
+
+/**
+ * Obtiene un valor de configuración desde la base de datos
+ */
+function getConfig($db, $clave, $default = null) {
+    try {
+        $stmt = $db->prepare("SELECT valor FROM configuracion WHERE clave = ?");
+        $stmt->execute([$clave]);
+        $resultado = $stmt->fetchColumn();
+        return $resultado !== false ? $resultado : $default;
+    } catch (PDOException $e) {
+        return $default;
+    }
+}
+
+/**
+ * Guarda un valor de configuración en la base de datos
+ */
+function setConfig($db, $clave, $valor) {
+    try {
+        $stmt = $db->prepare("INSERT INTO configuracion (clave, valor) VALUES (?, ?) 
+                              ON DUPLICATE KEY UPDATE valor = VALUES(valor)");
+        return $stmt->execute([$clave, $valor]);
+    } catch (PDOException $e) {
+        return false;
+    }
+}
 ?>

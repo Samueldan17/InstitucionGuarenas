@@ -2,6 +2,18 @@
 require_once 'config.php';
 requireAuth();
 
+// =========================================================
+// PROTECCIÓN DE ROLES - Redirigir según el tipo de usuario
+// =========================================================
+if ($_SESSION['usuario_rol'] === 'estudiante') {
+    header('Location: panel_estudiante.php');
+    exit;
+}
+if ($_SESSION['usuario_rol'] === 'representante') {
+    header('Location: panel_representante.php');
+    exit;
+}
+
 $db = getDBConnection();
 
 // Estadísticas generales

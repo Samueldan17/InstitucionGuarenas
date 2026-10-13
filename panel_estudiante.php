@@ -1,7 +1,9 @@
 <?php
-// panel_estudiante.php - Vista para estudiantes
+// panel_estudiante.php - Panel del estudiante (VERSIÓN 3.6 - solo año activo)
 require_once 'config.php';
+require_once 'functions.php';
 requireAuth();
+
 if ($_SESSION['usuario_rol'] !== 'estudiante') {
     header('Location: dashboard.php');
     exit;
@@ -10,77 +12,204 @@ if ($_SESSION['usuario_rol'] !== 'estudiante') {
 $db = getDBConnection();
 $usuario_id = $_SESSION['usuario_id'];
 
-// Obtener el estudiante asociado al usuario
-$stmt = $db->prepare("SELECT id FROM estudiantes WHERE usuario_id = ? AND estado = 'activo'");
-$stmt->execute([$usuario_id]);
-$estudiante = $stmt->fetch();
+$estudiante = getEstudiantePorUsuario($usuario_id);
 if (!$estudiante) {
-    die('No se encontró un estudiante asociado a su usuario.');
+    die('<div style="padding: 40px; text-align: center; font-family: Arial;">
+        <h2>⚠️ No se encontró un estudiante vinculado a su usuario</h2>
+        <p>Contacte al administrador del sistema.</p>
+        <a href="logout.php" style="color: #3498db;">Cerrar Sesión</a>
+    </div>');
 }
+
 $estudiante_id = $estudiante['id'];
 
-// Obtener lapsos disponibles y años escolares
-$lapsos = [1,2,3];
-$anios = $db->query("SELECT DISTINCT anio_escolar FROM notas WHERE estudiante_id = $estudiante_id ORDER BY anio_escolar DESC")->fetchAll(PDO::FETCH_COLUMN);
+// Año escolar activo desde configuración
+$anio_escolar_texto = getConfig($db, 'anio_escolar_activo', date('Y') . '-' . (date('Y') + 1));
+$anio_seleccionado = (int)explode('-', $anio_escolar_texto)[0];
 
-// Si hay POST, generar boleta
+// Procesar consulta
+$lapso = (int)($_POST['lapso'] ?? 1);
+$mostrar_boleta = isset($_POST['ver_boleta']);
+
 $boleta_data = null;
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ver_boleta'])) {
-    $lapso = (int)$_POST['lapso'];
-    $anio = (int)$_POST['anio_escolar'];
-    $boleta_data = getBoletaData($estudiante_id, $lapso, $anio);
+$error_boleta = null;
+
+if ($mostrar_boleta) {
+    $boleta_data = getBoletaData($estudiante_id, $lapso, $anio_seleccionado);
+    if (isset($boleta_data['error'])) {
+        $error_boleta = $boleta_data['error'];
+        $boleta_data = null;
+    }
+}
+
+$promedio_general = 0;
+if ($boleta_data && !empty($boleta_data['notas'])) {
+    $suma = 0;
+    $contador = 0;
+    foreach ($boleta_data['notas'] as $n) {
+        $def = obtenerNotaFinal($n['definitiva'], $n['recuperacion']);
+        $suma += $def;
+        $contador++;
+    }
+    $promedio_general = $contador > 0 ? round($suma / $contador, 2) : 0;
 }
 ?>
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Mi Panel - Estudiante</title>
+    <title>Mi Panel - <?php echo APP_NAME; ?></title>
     <link rel="stylesheet" href="<?php echo APP_URL; ?>/assets/css/styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .student-header {
+            background: linear-gradient(135deg, #3498db, #2c3e50);
+            color: white; padding: 25px; border-radius: 12px;
+            margin-bottom: 20px; display: flex; align-items: center; gap: 20px;
+        }
+        .student-avatar {
+            width: 80px; height: 80px; border-radius: 50%;
+            background: rgba(255,255,255,0.2); display: flex;
+            align-items: center; justify-content: center;
+            font-size: 32px; font-weight: bold; flex-shrink: 0;
+        }
+        .student-info h2 { margin: 0 0 5px 0; color: white; }
+        .student-info p { margin: 3px 0; opacity: 0.9; font-size: 14px; }
+        .nota-cell { font-family: 'Consolas', monospace; font-weight: 600; text-align: center; }
+        .nota-aprobado { color: #27ae60; }
+        .nota-reprobado { color: #e74c3c; }
+        .promedio-card {
+            background: #f8f9fa; border-left: 4px solid #3498db;
+            padding: 20px; border-radius: 8px; margin-bottom: 20px;
+        }
+        .promedio-card h3 { margin: 0 0 5px 0; color: #2c3e50; }
+        .promedio-card .promedio-valor { font-size: 36px; font-weight: bold; color: #3498db; }
+        @media print {
+            .no-print { display: none !important; }
+            .sidebar, .main-header { display: none !important; }
+            .main-content { margin: 0 !important; }
+        }
+    </style>
 </head>
 <body>
 <div class="dashboard-container">
     <?php echo getSidebar('estudiante'); ?>
     <main class="main-content">
-        <header class="main-header"><h1>Mi Panel de Notas</h1></header>
+        <header class="main-header no-print">
+            <h1><i class="fas fa-user-graduate"></i> Mi Panel de Notas</h1>
+        </header>
         <div class="content-container">
-            <div class="card">
-                <div class="card-header"><h2>Consultar Boletas</h2></div>
+
+            <div class="student-header no-print">
+                <div class="student-avatar">
+                    <?php echo strtoupper(substr($estudiante['nombres'], 0, 1) . substr($estudiante['apellidos'], 0, 1)); ?>
+                </div>
+                <div class="student-info">
+                    <h2><?php echo htmlspecialchars($estudiante['nombres'] . ' ' . $estudiante['apellidos']); ?></h2>
+                    <p><i class="fas fa-id-card"></i> <?php echo htmlspecialchars($estudiante['cedula']); ?></p>
+                    <p><i class="fas fa-school"></i> <?php echo htmlspecialchars($estudiante['grado_nombre'] . ' "' . $estudiante['seccion_letra'] . '" (' . $estudiante['turno'] . ')'); ?></p>
+                    <p><i class="fas fa-calendar"></i> Año Escolar: <strong><?php echo htmlspecialchars($anio_escolar_texto); ?></strong></p>
+                </div>
+            </div>
+
+            <div class="card no-print">
+                <div class="card-header"><h2><i class="fas fa-file-alt"></i> Consultar Notas</h2></div>
                 <div class="card-body">
                     <form method="POST">
                         <div class="form-grid">
                             <div class="form-group">
-                                <label>Lapso</label>
+                                <label>Lapso a consultar</label>
                                 <select name="lapso" class="form-control">
-                                    <?php foreach ($lapsos as $l): ?>
-                                    <option value="<?php echo $l; ?>"><?php echo $l; ?>er Lapso</option>
-                                    <?php endforeach; ?>
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label>Año Escolar</label>
-                                <select name="anio_escolar" class="form-control">
-                                    <?php foreach ($anios as $a): ?>
-                                    <option value="<?php echo $a; ?>"><?php echo $a; ?>-<?php echo $a+1; ?></option>
-                                    <?php endforeach; ?>
+                                    <option value="1" <?php echo $lapso == 1 ? 'selected' : ''; ?>>1er Lapso</option>
+                                    <option value="2" <?php echo $lapso == 2 ? 'selected' : ''; ?>>2do Lapso</option>
+                                    <option value="3" <?php echo $lapso == 3 ? 'selected' : ''; ?>>3er Lapso</option>
                                 </select>
                             </div>
                         </div>
-                        <button type="submit" name="ver_boleta" class="btn btn-primary">Ver Boleta</button>
+                        <button type="submit" name="ver_boleta" class="btn btn-primary">
+                            <i class="fas fa-search"></i> Consultar Notas
+                        </button>
                     </form>
                 </div>
             </div>
 
-            <?php if ($boleta_data): ?>
-            <div class="boleta-container" id="boleta">
-                <!-- Aquí se incluye el mismo contenido de boleta que en boletas.php -->
-                <?php include 'templates/boleta_template.php'; ?>
-                <div class="form-actions no-print">
-                    <button onclick="window.print()" class="btn btn-primary"><i class="fas fa-print"></i> Imprimir</button>
+            <?php if ($error_boleta): ?>
+                <div class="alert alert-warning">
+                    <i class="fas fa-info-circle"></i> <?php echo htmlspecialchars($error_boleta); ?>
                 </div>
-            </div>
             <?php endif; ?>
+
+            <?php if ($boleta_data): ?>
+                
+                <div class="promedio-card no-print">
+                    <h3><i class="fas fa-chart-line"></i> Promedio General del <?php echo $lapso; ?>er Lapso</h3>
+                    <div class="promedio-valor <?php echo $promedio_general >= 10 ? 'nota-aprobado' : 'nota-reprobado'; ?>">
+                        <?php echo number_format($promedio_general, 2); ?> pts
+                    </div>
+                    <small class="text-muted">
+                        <?php echo $promedio_general >= 10 ? '✅ Aprobado' : '⚠️ En riesgo académico'; ?>
+                    </small>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h2><i class="fas fa-table"></i> Notas del <?php echo $lapso; ?>er Lapso - <?php echo htmlspecialchars($anio_escolar_texto); ?></h2>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Materia</th>
+                                        <th style="text-align: center;">1er Momento</th>
+                                        <th style="text-align: center;">2do Momento</th>
+                                        <th style="text-align: center;">3er Momento</th>
+                                        <th style="text-align: center;">Definitiva</th>
+                                        <th style="text-align: center;">Recuperación</th>
+                                        <th style="text-align: center;">Nota Final</th>
+                                        <th>Docente</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($boleta_data['notas'] as $n): 
+                                        $def = floatval($n['definitiva']);
+                                        $rec = $n['recuperacion'] !== null ? floatval($n['recuperacion']) : null;
+                                        $final = obtenerNotaFinal($def, $rec);
+                                        $clase = $final >= 10 ? 'nota-aprobado' : 'nota-reprobado';
+                                    ?>
+                                    <tr>
+                                        <td><strong><?php echo htmlspecialchars($n['materia_nombre']); ?></strong></td>
+                                        <td class="nota-cell"><?php echo $n['evaluacion1'] !== null ? number_format($n['evaluacion1'], 1) : '—'; ?></td>
+                                        <td class="nota-cell"><?php echo $n['evaluacion2'] !== null ? number_format($n['evaluacion2'], 1) : '—'; ?></td>
+                                        <td class="nota-cell"><?php echo $n['evaluacion3'] !== null ? number_format($n['evaluacion3'], 1) : '—'; ?></td>
+                                        <td class="nota-cell"><?php echo number_format($def, 1); ?></td>
+                                        <td class="nota-cell"><?php echo $rec !== null ? number_format($rec, 1) : '—'; ?></td>
+                                        <td class="nota-cell <?php echo $clase; ?>"><?php echo number_format($final, 1); ?></td>
+                                        <td><small><?php echo htmlspecialchars($n['docente_nombre'] ?: 'Sin asignar'); ?></small></td>
+                                    </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="no-print" style="margin-top: 20px; display: flex; gap: 10px; justify-content: flex-end;">
+                    <button onclick="window.print()" class="btn btn-secondary">
+                        <i class="fas fa-print"></i> Imprimir Notas
+                    </button>
+                    <form method="POST" action="boletas.php" target="_blank" style="display: inline;">
+                        <input type="hidden" name="estudiante_id" value="<?php echo $estudiante_id; ?>">
+                        <input type="hidden" name="lapso" value="<?php echo $lapso; ?>">
+                        <input type="hidden" name="anio_escolar" value="<?php echo $anio_seleccionado; ?>">
+                        <button type="submit" class="btn btn-success">
+                            <i class="fas fa-file-pdf"></i> Ver Boletín Oficial
+                        </button>
+                    </form>
+                </div>
+
+            <?php endif; ?>
+
         </div>
     </main>
 </div>

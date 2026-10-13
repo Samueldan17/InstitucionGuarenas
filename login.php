@@ -1,9 +1,16 @@
 <?php
-// login.php - Sistema de autenticación con seguridad mejorada (VERSIÓN 3.2)
+// login.php - Sistema de autenticación con seguridad mejorada (VERSIÓN 3.5)
 require_once 'config.php';
 
 if (isset($_SESSION['usuario_id'])) {
-    header('Location: dashboard.php');
+    // Redirigir según rol
+    if ($_SESSION['usuario_rol'] === 'estudiante') {
+        header('Location: panel_estudiante.php');
+    } elseif ($_SESSION['usuario_rol'] === 'representante') {
+        header('Location: panel_representante.php');
+    } else {
+        header('Location: dashboard.php');
+    }
     exit;
 }
 
@@ -18,7 +25,7 @@ if (isset($_GET['action'])) {
 }
 
 // =========================================================
-// PROCESAR LOGIN CON LÍMITE DE INTENTOS
+// PROCESAR LOGIN
 // =========================================================
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
     $username = sanitize($_POST['username'] ?? '');
@@ -39,7 +46,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
                 if ($bloqueo && $bloqueo['bloqueado_hasta'] && strtotime($bloqueo['bloqueado_hasta']) > time()) {
                     $error = 'Demasiados intentos fallidos. Intente nuevamente después de 15 minutos.';
                 } else {
-                    // Buscar usuario por username o cédula (aceptando ambos formatos)
                     $cedula_formateada = formatearCedulaParaBD($username);
                     $stmt = $db->prepare("
                         SELECT id, username, cedula, password, nombres, apellidos, rol, activo 
@@ -65,6 +71,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
 
                         registrarLog('login_exitoso', 'usuarios', $usuario['id'], "Usuario {$usuario['username']} inició sesión");
 
+                        // Redirigir según rol
                         switch ($usuario['rol']) {
                             case 'admin':
                             case 'docente':
@@ -107,7 +114,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
 }
 
 // =========================================================
-// PROCESAR REGISTRO DE NUEVO USUARIO
+// PROCESAR REGISTRO
 // =========================================================
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['register'])) {
     $nombres = formatearNombrePropio($_POST['nombres'] ?? '');
@@ -155,7 +162,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['register'])) {
 }
 
 // =========================================================
-// PROCESAR RECUPERACIÓN DE CONTRASEÑA
+// PROCESAR RECUPERACIÓN
 // =========================================================
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['recovery'])) {
     $email = sanitize($_POST['email'] ?? '');
