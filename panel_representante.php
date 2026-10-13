@@ -272,7 +272,7 @@ $iniciales_rep = strtoupper(substr($representante['nombres'], 0, 1) . substr($re
                                 <i class="fas fa-file-pdf"></i> Ver Boletín Oficial
                             </a>
                         </div>
-                    <?php endif; ?>
+                    <?php endif; ?> 
 
                 <?php endif; ?>
 
