@@ -323,4 +323,56 @@ function setConfig($db, $clave, $valor) {
         return false;
     }
 }
+// =========================================================
+// FUNCIÓN: Crear y vincular representante automáticamente
+// =========================================================
+
+/**
+ * Crea un usuario representante (si no existe) y lo vincula a un estudiante.
+ * Devuelve el ID del representante o false si falla.
+ */
+function crearYVincularRepresentante($estudiante_id, $cedula_rep, $nombre_rep = '', $apellido_rep = '', $email_rep = null, $telefono_rep = null, $parentesco = 'Representante') {
+    $db = getDBConnection();
+    if (!$db) return false;
+
+    try {
+        $cedula_rep = formatearCedulaParaBD($cedula_rep);
+        if (empty($cedula_rep)) return false;
+
+        // Separar nombre y apellido si vienen juntos
+        $nombre_rep = trim($nombre_rep);
+        if (empty($apellido_rep) && strpos($nombre_rep, ' ') !== false) {
+            $partes = explode(' ', $nombre_rep, 2);
+            $nombre_rep = $partes[0];
+            $apellido_rep = $partes[1] ?? '';
+        }
+
+        // Buscar si ya existe el representante
+        $stmt = $db->prepare("SELECT id FROM usuarios WHERE cedula = ? AND rol = 'representante'");
+        $stmt->execute([$cedula_rep]);
+        $rep = $stmt->fetch();
+
+        if ($rep) {
+            $representante_id = $rep['id'];
+        } else {
+            // Crear usuario representante
+            $representante_id = crearUsuarioRepresentante(
+                $cedula_rep,
+                $nombre_rep ?: 'Representante',
+                $apellido_rep,
+                $email_rep,
+                $telefono_rep
+            );
+            if (!$representante_id) return false;
+        }
+
+        // Vincular con el estudiante
+        vincularRepresentanteEstudiante($representante_id, $estudiante_id, $parentesco, 1);
+
+        return $representante_id;
+    } catch (PDOException $e) {
+        error_log("Error en crearYVincularRepresentante: " . $e->getMessage());
+        return false;
+    }
+}
 ?>
