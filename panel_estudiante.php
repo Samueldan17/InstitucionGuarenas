@@ -1,5 +1,5 @@
 <?php
-// panel_estudiante.php - Panel del estudiante (VERSIÓN 3.6 - solo año activo)
+// panel_estudiante.php - Panel del estudiante (VERSIÓN 3.7 - con GET)
 require_once 'config.php';
 require_once 'functions.php';
 requireAuth();
@@ -27,14 +27,14 @@ $estudiante_id = $estudiante['id'];
 $anio_escolar_texto = getConfig($db, 'anio_escolar_activo', date('Y') . '-' . (date('Y') + 1));
 $anio_seleccionado = (int)explode('-', $anio_escolar_texto)[0];
 
-// Procesar consulta
-$lapso = (int)($_POST['lapso'] ?? 1);
-$mostrar_boleta = isset($_POST['ver_boleta']);
+// Procesar consulta (ahora con GET)
+$lapso = (int)($_GET['lapso'] ?? 0);
+$mostrar_boleta = isset($_GET['ver_boleta']) || $lapso > 0;
 
 $boleta_data = null;
 $error_boleta = null;
 
-if ($mostrar_boleta) {
+if ($mostrar_boleta && $lapso > 0) {
     $boleta_data = getBoletaData($estudiante_id, $lapso, $anio_seleccionado);
     if (isset($boleta_data['error'])) {
         $error_boleta = $boleta_data['error'];
@@ -115,7 +115,8 @@ if ($boleta_data && !empty($boleta_data['notas'])) {
             <div class="card no-print">
                 <div class="card-header"><h2><i class="fas fa-file-alt"></i> Consultar Notas</h2></div>
                 <div class="card-body">
-                    <form method="POST">
+                    <form method="GET">
+                        <input type="hidden" name="ver_boleta" value="1">
                         <div class="form-grid">
                             <div class="form-group">
                                 <label>Lapso a consultar</label>
@@ -126,7 +127,7 @@ if ($boleta_data && !empty($boleta_data['notas'])) {
                                 </select>
                             </div>
                         </div>
-                        <button type="submit" name="ver_boleta" class="btn btn-primary">
+                        <button type="submit" class="btn btn-primary">
                             <i class="fas fa-search"></i> Consultar Notas
                         </button>
                     </form>
@@ -198,14 +199,9 @@ if ($boleta_data && !empty($boleta_data['notas'])) {
                     <button onclick="window.print()" class="btn btn-secondary">
                         <i class="fas fa-print"></i> Imprimir Notas
                     </button>
-                    <form method="POST" action="boletas.php" target="_blank" style="display: inline;">
-                        <input type="hidden" name="estudiante_id" value="<?php echo $estudiante_id; ?>">
-                        <input type="hidden" name="lapso" value="<?php echo $lapso; ?>">
-                        <input type="hidden" name="anio_escolar" value="<?php echo $anio_seleccionado; ?>">
-                        <button type="submit" class="btn btn-success">
-                            <i class="fas fa-file-pdf"></i> Ver Boletín Oficial
-                        </button>
-                    </form>
+                    <a href="boletas.php?estudiante_id=<?php echo $estudiante_id; ?>&lapso=<?php echo $lapso; ?>&anio_escolar=<?php echo $anio_seleccionado; ?>" target="_blank" class="btn btn-success">
+                        <i class="fas fa-file-pdf"></i> Ver Boletín Oficial
+                    </a>
                 </div>
 
             <?php endif; ?>
