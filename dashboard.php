@@ -2,9 +2,7 @@
 require_once 'config.php';
 requireAuth();
 
-// =========================================================
-// PROTECCIÓN DE ROLES - Redirigir según el tipo de usuario
-// =========================================================
+// Redirigir según rol
 if ($_SESSION['usuario_rol'] === 'estudiante') {
     header('Location: panel_estudiante.php');
     exit;
@@ -17,22 +15,27 @@ if ($_SESSION['usuario_rol'] === 'representante') {
 $db = getDBConnection();
 
 // Estadísticas generales
-$totalEstudiantes = $db->query("SELECT COUNT(*) as total FROM estudiantes WHERE estado = 'activo'")->fetch()['total'];
-$totalSecciones = $db->query("SELECT COUNT(*) as total FROM secciones WHERE activo = 1")->fetch()['total'];
-$totalMaterias = $db->query("SELECT COUNT(*) as total FROM materias WHERE activo = 1")->fetch()['total'];
+$totalEstudiantes = $db->query("SELECT COUNT(*) FROM estudiantes WHERE estado = 'activo'")->fetchColumn();
+$totalSecciones = $db->query("SELECT COUNT(*) FROM secciones WHERE activo = 1")->fetchColumn();
+$totalMaterias = $db->query("SELECT COUNT(*) FROM materias WHERE activo = 1")->fetchColumn();
+$totalDocentes = $db->query("SELECT COUNT(*) FROM usuarios WHERE rol IN ('docente','secretario') AND activo = 1")->fetchColumn();
 
-$promedioGeneral = $db->query("SELECT AVG(promedio) as promedio FROM notas WHERE anio_escolar = YEAR(CURDATE()) AND promedio > 0")->fetch()['promedio'];
+// Promedio general (nueva estructura: columna `nota`)
+$promedioGeneral = $db->query("
+    SELECT AVG(nota) FROM notas 
+    WHERE anio_escolar = YEAR(CURDATE()) AND nota > 0
+")->fetchColumn();
 $promedioGeneral = $promedioGeneral ? round($promedioGeneral, 1) : 0;
 
+// Estudiantes en riesgo (promedio < 10)
 $estudiantesRiesgo = $db->query("
-    SELECT COUNT(DISTINCT n.estudiante_id) as total
-    FROM notas n
-    WHERE n.anio_escolar = YEAR(CURDATE()) AND n.lapso = (SELECT MAX(lapso) FROM notas WHERE anio_escolar = YEAR(CURDATE()))
-    AND n.promedio < 10
-")->fetch()['total'];
+    SELECT COUNT(DISTINCT estudiante_id) FROM notas 
+    WHERE anio_escolar = YEAR(CURDATE()) AND nota < 10
+")->fetchColumn();
 
+// Rendimiento por grado
 $rendimientoGrados = $db->query("
-    SELECT g.nombre, AVG(n.promedio) as promedio
+    SELECT g.nombre, AVG(n.nota) as promedio
     FROM notas n
     JOIN estudiantes e ON n.estudiante_id = e.id
     JOIN secciones s ON e.seccion_id = s.id
@@ -42,8 +45,13 @@ $rendimientoGrados = $db->query("
     ORDER BY g.orden
 ")->fetchAll();
 
+// Últimas notas registradas
 $ultimasNotas = $db->query("
-    SELECT CONCAT(e.apellidos, ', ', e.nombres) as estudiante, m.nombre as materia, n.promedio, n.fecha_actualizacion
+    SELECT CONCAT(e.apellidos, ', ', e.nombres) as estudiante, 
+           m.nombre as materia, 
+           n.nota, 
+           n.lapso,
+           n.fecha_actualizacion
     FROM notas n
     JOIN estudiantes e ON n.estudiante_id = e.id
     JOIN seccion_materias sm ON n.seccion_materia_id = sm.id
@@ -67,42 +75,60 @@ $ultimasNotas = $db->query("
     <main class="main-content">
         <header class="main-header">
             <h1>Panel Principal</h1>
-            <div class="header-actions">
-                <div class="search-box">
-                    <input type="text" placeholder="Buscar..." id="globalSearch">
-                    <button class="search-btn"><i class="fas fa-search"></i></button>
-                </div>
-            </div>
         </header>
         <div class="content-container">
             <div class="stats-grid">
-                <div class="stat-card"><div class="stat-icon"><i class="fas fa-user-graduate"></i></div><div class="stat-info"><h3><?php echo $totalEstudiantes; ?></h3><p>Estudiantes Activos</p></div></div>
-                <div class="stat-card"><div class="stat-icon"><i class="fas fa-users"></i></div><div class="stat-info"><h3><?php echo $totalSecciones; ?></h3><p>Secciones</p></div></div>
-                <div class="stat-card"><div class="stat-icon"><i class="fas fa-book"></i></div><div class="stat-info"><h3><?php echo $totalMaterias; ?></h3><p>Materias</p></div></div>
-                <div class="stat-card"><div class="stat-icon"><i class="fas fa-chart-line"></i></div><div class="stat-info"><h3><?php echo $promedioGeneral; ?></h3><p>Promedio General</p></div></div>
+                <div class="stat-card">
+                    <div class="stat-icon"><i class="fas fa-user-graduate"></i></div>
+                    <div class="stat-info"><h3><?php echo $totalEstudiantes; ?></h3><p>Estudiantes Activos</p></div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon"><i class="fas fa-users"></i></div>
+                    <div class="stat-info"><h3><?php echo $totalSecciones; ?></h3><p>Secciones</p></div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon"><i class="fas fa-book"></i></div>
+                    <div class="stat-info"><h3><?php echo $totalMaterias; ?></h3><p>Materias</p></div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon"><i class="fas fa-chalkboard-teacher"></i></div>
+                    <div class="stat-info"><h3><?php echo $totalDocentes; ?></h3><p>Docentes</p></div>
+                </div>
             </div>
+
             <div class="content-grid">
                 <div class="card">
-                    <div class="card-header"><h2>Rendimiento por Grado</h2></div>
-                    <div class="card-body"><canvas id="rendimientoChart" width="400" height="200"></canvas></div>
-                </div>
-                <div class="card">
-                    <div class="card-header"><h2>Estudiantes en Riesgo</h2></div>
+                    <div class="card-header"><h2><i class="fas fa-chart-bar"></i> Rendimiento por Grado</h2></div>
                     <div class="card-body">
-                        <div style="text-align:center; font-size:3rem; color:#e74c3c;"><?php echo $estudiantesRiesgo; ?></div>
-                        <p style="text-align:center;">Estudiantes con promedio < 10 en el último lapso</p>
-                        <a href="reportes.php?tipo_reporte=rendimiento&lapso=3" class="btn btn-primary btn-block">Ver Detalle</a>
+                        <?php if (empty($rendimientoGrados)): ?>
+                            <p class="text-muted">Aún no hay notas cargadas.</p>
+                        <?php else: ?>
+                            <canvas id="rendimientoChart" width="400" height="200"></canvas>
+                        <?php endif; ?>
                     </div>
                 </div>
+
                 <div class="card">
-                    <div class="card-header"><h2>Últimas Notas Registradas</h2></div>
+                    <div class="card-header"><h2><i class="fas fa-exclamation-triangle"></i> Estudiantes en Riesgo</h2></div>
                     <div class="card-body">
-                        <?php if($ultimasNotas): ?>
+                        <div style="text-align:center; font-size:3rem; color:#e74c3c;"><?php echo $estudiantesRiesgo; ?></div>
+                        <p style="text-align:center;">Estudiantes con nota menor a 10</p>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header"><h2><i class="fas fa-clock"></i> Últimas Notas Registradas</h2></div>
+                    <div class="card-body">
+                        <?php if ($ultimasNotas): ?>
                         <ul style="list-style:none; padding:0;">
-                            <?php foreach($ultimasNotas as $nota): ?>
+                            <?php foreach ($ultimasNotas as $nota): ?>
                             <li style="padding:8px 0; border-bottom:1px solid #eee;">
-                                <strong><?php echo htmlspecialchars($nota['estudiante']); ?></strong> - <?php echo htmlspecialchars($nota['materia']); ?>: 
-                                <span class="badge badge-<?php echo $nota['promedio']>=10?'success':'danger'; ?>"><?php echo number_format($nota['promedio'],1); ?></span>
+                                <strong><?php echo htmlspecialchars($nota['estudiante']); ?></strong><br>
+                                <small><?php echo htmlspecialchars($nota['materia']); ?> - Lapso <?php echo $nota['lapso']; ?>:</small> 
+                                <span class="badge badge-<?php echo $nota['nota'] >= 10 ? 'success' : 'danger'; ?>">
+                                    <?php echo number_format($nota['nota'], 1); ?>
+                                </span>
+                                <br>
                                 <small class="text-muted"><?php echo date('d/m/Y H:i', strtotime($nota['fecha_actualizacion'])); ?></small>
                             </li>
                             <?php endforeach; ?>
@@ -112,14 +138,15 @@ $ultimasNotas = $db->query("
                         <?php endif; ?>
                     </div>
                 </div>
+
                 <div class="card">
-                    <div class="card-header"><h2>Acciones Rápidas</h2></div>
+                    <div class="card-header"><h2><i class="fas fa-bolt"></i> Acciones Rápidas</h2></div>
                     <div class="card-body">
                         <div class="quick-actions">
-                            <a href="estudiantes.php?action=new" class="action-btn"><i class="fas fa-user-plus"></i><span>Nuevo Estudiante</span></a>
+                            <a href="estudiantes.php" class="action-btn"><i class="fas fa-user-plus"></i><span>Estudiantes</span></a>
                             <a href="asignar_notas.php" class="action-btn"><i class="fas fa-edit"></i><span>Cargar Notas</span></a>
-                            <a href="reportes.php" class="action-btn"><i class="fas fa-chart-bar"></i><span>Generar Reporte</span></a>
-                            <a href="secciones.php" class="action-btn"><i class="fas fa-school"></i><span>Gestionar Secciones</span></a>
+                            <a href="reportes.php" class="action-btn"><i class="fas fa-chart-bar"></i><span>Reportes</span></a>
+                            <a href="secciones.php" class="action-btn"><i class="fas fa-school"></i><span>Secciones</span></a>
                         </div>
                     </div>
                 </div>
@@ -128,18 +155,29 @@ $ultimasNotas = $db->query("
     </main>
 </div>
 
+<?php if (!empty($rendimientoGrados)): ?>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    const ctx = document.getElementById('rendimientoChart').getContext('2d');
-    const grados = <?php echo json_encode(array_column($rendimientoGrados, 'nombre')); ?>;
-    const promedios = <?php echo json_encode(array_column($rendimientoGrados, 'promedio')); ?>;
-    new Chart(ctx, {
+    const ctx = document.getElementById('rendimientoChart');
+    if (!ctx) return;
+    new Chart(ctx.getContext('2d'), {
         type: 'bar',
-        data: { labels: grados, datasets: [{ label: 'Promedio General', data: promedios, backgroundColor: '#3498db' }] },
-        options: { scales: { y: { beginAtZero: true, max: 20 } }, responsive: true }
+        data: {
+            labels: <?php echo json_encode(array_column($rendimientoGrados, 'nombre')); ?>,
+            datasets: [{
+                label: 'Promedio',
+                data: <?php echo json_encode(array_map(function($v) { return round($v['promedio'], 1); }, $rendimientoGrados)); ?>,
+                backgroundColor: '#3498db'
+            }]
+        },
+        options: {
+            scales: { y: { beginAtZero: true, max: 20 } },
+            responsive: true
+        }
     });
 });
 </script>
+<?php endif; ?>
 <script src="<?php echo APP_URL; ?>/assets/js/main.js"></script>
 </body>
 </html>
