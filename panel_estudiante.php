@@ -60,7 +60,7 @@ if ($boleta_data && !empty($boleta_data['notas'])) {
     <meta charset="UTF-8">
     <title>Mi Panel - <?php echo APP_NAME; ?></title>
     <link rel="stylesheet" href="<?php echo APP_URL; ?>/assets/css/styles.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="<?php echo APP_URL; ?>/assets/fontawesome/css/all.min.css">
     <style>
         .student-header {
             background: linear-gradient(135deg, #3498db, #2c3e50);

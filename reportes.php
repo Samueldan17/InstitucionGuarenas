@@ -171,7 +171,7 @@ if ($tipo_reporte === 'sabana' && $seccion_id) {
     <meta charset="UTF-8">
     <title>Reportes - <?php echo APP_NAME; ?></title>
     <link rel="stylesheet" href="<?php echo APP_URL; ?>/assets/css/styles.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="<?php echo APP_URL; ?>/assets/fontawesome/css/all.min.css">
     <style>
         .report-tabs {
             display: flex;

@@ -1,5 +1,5 @@
 <?php
-// configuracion.php - Configuración del sistema (VERSIÓN 3.5)
+// configuracion.php - Configuración del sistema (VERSIÓN 3.6)
 require_once 'config.php';
 requireAuth();
 if ($_SESSION['usuario_rol'] !== 'admin') { header('Location: dashboard.php'); exit; }
@@ -10,19 +10,6 @@ $error = $_GET['error'] ?? '';
 // =========================================================
 // FUNCIONES HELPER
 // =========================================================
-function getConfig($db, $clave, $default = null) {
-    $stmt = $db->prepare("SELECT valor FROM configuracion WHERE clave = ?");
-    $stmt->execute([$clave]);
-    $resultado = $stmt->fetchColumn();
-    return $resultado !== false ? $resultado : $default;
-}
-
-function setConfig($db, $clave, $valor) {
-    $stmt = $db->prepare("INSERT INTO configuracion (clave, valor) VALUES (?, ?) 
-                          ON DUPLICATE KEY UPDATE valor = VALUES(valor)");
-    return $stmt->execute([$clave, $valor]);
-}
-
 function formatearPeso($bytes) {
     if ($bytes < 1024) return $bytes . ' B';
     if ($bytes < 1024 * 1024) return round($bytes / 1024, 2) . ' KB';
@@ -142,7 +129,6 @@ if (isset($_GET['accion']) && $_GET['accion'] === 'backup') {
     $output .= "-- FIN DEL RESPALDO\n";
     $output .= "-- ============================================\n";
     
-    // Guardar la fecha del último respaldo
     setConfig($db, 'ultimo_respaldo', date('Y-m-d H:i:s'));
     registrarLog('backup_bd', 'configuracion', null, "Respaldo descargado");
     echo $output;
@@ -171,13 +157,13 @@ try {
     $peso_bd = $stmt->fetch()['peso'] ?? 0;
 } catch (PDOException $e) {}
 
-// Años escolares registrados (únicos)
+// Años escolares registrados
 $anios_escolares = $db->query("SELECT DISTINCT anio_escolar FROM secciones WHERE anio_escolar IS NOT NULL ORDER BY anio_escolar DESC")->fetchAll(PDO::FETCH_COLUMN);
 if (empty($anios_escolares)) {
     $anios_escolares = [date('Y') . '-' . (date('Y') + 1)];
 }
 
-// Información general del sistema (configurable)
+// Información general del sistema
 $info_general = [
     'institucion' => APP_NAME,
     'sistema' => 'SIGEB-G (Sistema de Gestión de Calificaciones)',
@@ -212,7 +198,7 @@ $info_sistema = [
     <meta charset="UTF-8">
     <title>Configuración - <?php echo APP_NAME; ?></title>
     <link rel="stylesheet" href="<?php echo APP_URL; ?>/assets/css/styles.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="<?php echo APP_URL; ?>/assets/fontawesome/css/all.min.css">
     <style>
         .config-section {
             background: #fff;
