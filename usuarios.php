@@ -1,5 +1,5 @@
 <?php
-// usuarios.php - Gestión de usuarios (con CSRF) - VERSIÓN 3.2
+// usuarios.php - Gestión de usuarios (VERSIÓN 3.6 - Ciberseguridad)
 require_once 'config.php';
 require_once 'functions.php';
 requireAuth();
@@ -28,7 +28,7 @@ if (($_POST['action'] ?? '') == 'crear_usuario') {
             if (empty($nombres) || empty($apellidos)) throw new Exception("Nombres y apellidos obligatorios.");
             if (!validarEmail($email)) throw new Exception("Email inválido.");
             if ($telefono && !validarTelefonoVenezolano($telefono)) throw new Exception("Teléfono inválido. Use el formato 0412-1234567");
-            if (strlen($password) < 6) throw new Exception("La contraseña debe tener al menos 6 caracteres.");
+            if (($pass_valid = validarPasswordSegura($password)) !== true) throw new Exception($pass_valid);
             if ($password !== $confirm) throw new Exception("Las contraseñas no coinciden.");
             if (!in_array($rol, ['admin','docente','secretario'])) throw new Exception("Rol no válido.");
 
@@ -79,9 +79,7 @@ $usuarios = $db->query("SELECT * FROM usuarios WHERE activo = 1 ORDER BY apellid
         <header class="main-header">
             <h1><i class="fas fa-users-cog"></i> Gestión de Usuarios</h1>
             <div class="header-actions">
-                <button class="btn btn-primary" onclick="abrirModalNuevoUsuario()">
-                    <i class="fas fa-user-plus"></i> Nuevo Usuario
-                </button>
+                <button class="btn btn-primary" onclick="abrirModalNuevoUsuario()"><i class="fas fa-user-plus"></i> Nuevo Usuario</button>
             </div>
         </header>
         <div class="content-container">
@@ -120,18 +118,14 @@ $usuarios = $db->query("SELECT * FROM usuarios WHERE activo = 1 ORDER BY apellid
                                     </span>
                                 </td>
                                 <td class="actions">
-                                    <a href="editar_usuario.php?id=<?php echo $user['id']; ?>" class="btn btn-sm btn-info">
-                                        <i class="fas fa-edit"></i> Editar
-                                    </a>
+                                    <a href="editar_usuario.php?id=<?php echo $user['id']; ?>" class="btn btn-sm btn-info"><i class="fas fa-edit"></i></a>
                                     <?php if(!$esActual): ?>
                                     <form method="POST" style="display:inline;" onsubmit="return confirm('¿Eliminar este usuario?')">
                                         <input type="hidden" name="action" value="eliminar_usuario">
                                         <input type="hidden" name="id" value="<?php echo $user['id']; ?>">
                                         <input type="hidden" name="csrf_token" value="<?php echo generateCSRFToken(); ?>">
-                                        <button type="submit" class="btn btn-sm btn-danger"><i class="fas fa-trash"></i> Eliminar</button>
+                                        <button type="submit" class="btn btn-sm btn-danger"><i class="fas fa-trash"></i></button>
                                     </form>
-                                    <?php else: ?>
-                                    <button class="btn btn-sm btn-secondary" disabled><i class="fas fa-ban"></i> No disponible</button>
                                     <?php endif; ?>
                                 </td>
                             </tr>
@@ -140,11 +134,7 @@ $usuarios = $db->query("SELECT * FROM usuarios WHERE activo = 1 ORDER BY apellid
                         </table>
                     </div>
                     <?php else: ?>
-                    <div class="empty-state">
-                        <i class="fas fa-users fa-4x"></i>
-                        <h3>No hay usuarios registrados</h3>
-                        <button class="btn btn-primary" onclick="abrirModalNuevoUsuario()">Agregar Primer Usuario</button>
-                    </div>
+                    <div class="empty-state"><i class="fas fa-users fa-4x"></i><h3>No hay usuarios registrados</h3></div>
                     <?php endif; ?>
                 </div>
             </div>
@@ -165,15 +155,12 @@ $usuarios = $db->query("SELECT * FROM usuarios WHERE activo = 1 ORDER BY apellid
                         <div class="form-group">
                             <label>Cédula</label>
                             <input type="text" name="cedula" class="form-control cedula" required placeholder="Ej: 12345678">
-                            <small class="form-text">Escribe solo los números. El sistema agregará la "V-" automáticamente.</small>
+                            <small class="form-text">Escribe solo los números. El sistema agregará la "V-".</small>
                         </div>
                         <div class="form-group"><label>Nombres</label><input type="text" name="nombres" class="form-control" required></div>
                         <div class="form-group"><label>Apellidos</label><input type="text" name="apellidos" class="form-control" required></div>
                         <div class="form-group"><label>Email</label><input type="email" name="email" class="form-control" required></div>
-                        <div class="form-group">
-                            <label>Teléfono</label>
-                            <input type="text" name="telefono" class="form-control telefono" placeholder="0412-1234567">
-                        </div>
+                        <div class="form-group"><label>Teléfono</label><input type="text" name="telefono" class="form-control telefono" placeholder="0412-1234567"></div>
                         <div class="form-group">
                             <label>Rol</label>
                             <select name="rol" class="form-control" required>
@@ -182,8 +169,12 @@ $usuarios = $db->query("SELECT * FROM usuarios WHERE activo = 1 ORDER BY apellid
                                 <option value="admin">Administrador</option>
                             </select>
                         </div>
-                        <div class="form-group"><label>Contraseña</label><input type="password" name="password" class="form-control" minlength="6" required></div>
-                        <div class="form-group"><label>Confirmar</label><input type="password" name="confirm_password" class="form-control" required></div>
+                        <div class="form-group">
+                            <label>Contraseña Segura</label>
+                            <input type="password" name="password" class="form-control" minlength="8" required placeholder="Mín. 8 caracteres">
+                            <small class="form-text">Debe tener mayúscula, minúscula, número y símbolo.</small>
+                        </div>
+                        <div class="form-group"><label>Confirmar</label><input type="password" name="confirm_password" class="form-control" minlength="8" required></div>
                     </div>
                     <div class="form-actions">
                         <button type="submit" class="btn btn-primary">Guardar Usuario</button>

@@ -1,6 +1,7 @@
 <?php
-// editar_usuario.php - Edición de usuario (VERSIÓN 3.4)
+// editar_usuario.php - Edición de usuario (VERSIÓN 3.6 - Ciberseguridad)
 require_once 'config.php';
+require_once 'functions.php';
 requireAuth();
 if ($_SESSION['usuario_rol'] !== 'admin') { header('Location: dashboard.php'); exit; }
 $db = getDBConnection();
@@ -26,22 +27,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $telefono = sanitize($_POST['telefono'] ?? '');
         $rol = $_POST['rol'] ?? '';
         $activo = isset($_POST['activo']) ? 1 : 0;
+        $new_password = $_POST['new_password'] ?? '';
+        $confirm_password = $_POST['confirm_password'] ?? '';
 
         $valid_ced = validarCedulaVenezolana($cedula);
         if ($valid_ced !== true) $error = is_string($valid_ced) ? $valid_ced : "Cédula inválida.";
         elseif (empty($nombres) || empty($apellidos)) $error = "Nombres y apellidos obligatorios.";
         elseif (!validarEmail($email)) $error = "Email inválido.";
-        elseif ($telefono && !validarTelefonoVenezolano($telefono)) $error = "Teléfono inválido. Use formato 0412-1234567";
+        elseif ($telefono && !validarTelefonoVenezolano($telefono)) $error = "Teléfono inválido.";
         elseif (!in_array($rol, ['admin','docente','secretario'])) $error = "Rol no válido.";
-        else {
+        elseif (!empty($new_password)) {
+            if (($pass_valid = validarPasswordSegura($new_password)) !== true) {
+                $error = is_string($pass_valid) ? $pass_valid : 'Contraseña inválida';
+            } elseif ($new_password !== $confirm_password) {
+                $error = "Las contraseñas no coinciden.";
+            }
+        }
+        
+        if (!$error) {
             $check = $db->prepare("SELECT id FROM usuarios WHERE (cedula = ? OR email = ?) AND id != ?");
             $check->execute([$cedula, $email, $id]);
             if ($check->fetch()) {
                 $error = "Ya existe otro usuario con la misma cédula o email.";
             } else {
-                $stmt = $db->prepare("UPDATE usuarios SET cedula=?, nombres=?, apellidos=?, email=?, telefono=?, rol=?, activo=? WHERE id=?");
-                $stmt->execute([$cedula, $nombres, $apellidos, $email, $telefono, $rol, $activo, $id]);
-                $message = "✅ Usuario actualizado correctamente.";
+                if (!empty($new_password)) {
+                    $hash = password_hash($new_password, PASSWORD_DEFAULT);
+                    $stmt = $db->prepare("UPDATE usuarios SET cedula=?, nombres=?, apellidos=?, email=?, telefono=?, rol=?, activo=?, password=? WHERE id=?");
+                    $stmt->execute([$cedula, $nombres, $apellidos, $email, $telefono, $rol, $activo, $hash, $id]);
+                    $message = "✅ Usuario y contraseña actualizados correctamente.";
+                } else {
+                    $stmt = $db->prepare("UPDATE usuarios SET cedula=?, nombres=?, apellidos=?, email=?, telefono=?, rol=?, activo=? WHERE id=?");
+                    $stmt->execute([$cedula, $nombres, $apellidos, $email, $telefono, $rol, $activo, $id]);
+                    $message = "✅ Usuario actualizado correctamente.";
+                }
                 registrarLog('editar_usuario', 'usuarios', $id);
                 
                 $stmt = $db->prepare("SELECT * FROM usuarios WHERE id = ?");
@@ -52,10 +70,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// Iniciales para el avatar
 $iniciales = strtoupper(substr($usuario['nombres'], 0, 1) . substr($usuario['apellidos'], 0, 1));
-
-// Verificar si es el usuario actual
 $es_mismo_usuario = ($usuario['id'] == $_SESSION['usuario_id']);
 ?>
 <!DOCTYPE html>
@@ -78,25 +93,22 @@ $es_mismo_usuario = ($usuario['id'] == $_SESSION['usuario_id']);
                 </p>
             </div>
             <div class="header-actions">
-                <a href="usuarios.php" class="btn btn-secondary"><i class="fas fa-arrow-left"></i> Volver al Listado</a>
+                <a href="usuarios.php" class="btn btn-secondary"><i class="fas fa-arrow-left"></i> Volver</a>
             </div>
         </header>
         <div class="content-container">
             <?php if ($message): ?><div class="alert alert-success"><?php echo $message; ?></div><?php endif; ?>
             <?php if ($error): ?><div class="alert alert-danger"><?php echo $error; ?></div><?php endif; ?>
 
-            <!-- Tarjeta de resumen -->
             <div class="card" style="margin-bottom: 20px;">
                 <div class="card-body" style="display: flex; align-items: center; gap: 20px;">
                     <div style="width: 80px; height: 80px; border-radius: 50%; background: linear-gradient(135deg, #3498db, #2c3e50); color: white; display: flex; align-items: center; justify-content: center; font-size: 32px; font-weight: bold; flex-shrink: 0;">
                         <?php echo $iniciales; ?>
                     </div>
-                    <div style="flex: 1;">
+                    <div>
                         <h2 style="margin: 0;">
                             <?php echo htmlspecialchars($usuario['nombres'] . ' ' . $usuario['apellidos']); ?>
-                            <?php if ($es_mismo_usuario): ?>
-                                <span class="badge badge-info">Tú</span>
-                            <?php endif; ?>
+                            <?php if ($es_mismo_usuario): ?><span class="badge badge-info">Tú</span><?php endif; ?>
                         </h2>
                         <p style="margin: 5px 0; color: #7f8c8d;">
                             <i class="fas fa-id-card"></i> <?php echo htmlspecialchars($usuario['cedula']); ?> | 
@@ -105,32 +117,22 @@ $es_mismo_usuario = ($usuario['id'] == $_SESSION['usuario_id']);
                         <span class="badge badge-<?php echo $usuario['rol']=='admin'?'danger':($usuario['rol']=='docente'?'warning':'info'); ?>">
                             <?php echo ucfirst($usuario['rol']); ?>
                         </span>
-                        <span class="badge badge-<?php echo $usuario['activo']?'success':'secondary'; ?>">
-                            <?php echo $usuario['activo']?'Activo':'Inactivo'; ?>
-                        </span>
                     </div>
                 </div>
             </div>
 
-            <!-- Formulario de edición -->
-            <div class="card">
-                <div class="card-header"><h2><i class="fas fa-user-cog"></i> Datos del Usuario</h2></div>
-                <div class="card-body">
-                    <form method="POST">
-                        <input type="hidden" name="csrf_token" value="<?php echo generateCSRFToken(); ?>">
+            <form method="POST">
+                <input type="hidden" name="csrf_token" value="<?php echo generateCSRFToken(); ?>">
+                
+                <div class="card" style="margin-bottom: 20px;">
+                    <div class="card-header"><h2><i class="fas fa-user-cog"></i> Datos Básicos</h2></div>
+                    <div class="card-body">
                         <div class="form-grid">
-                            <div class="form-group">
-                                <label>Cédula</label>
-                                <input type="text" name="cedula" class="form-control cedula" value="<?php echo htmlspecialchars($usuario['cedula']); ?>" required>
-                                <small class="form-text">Escribe solo los números. El sistema agrega la "V-".</small>
-                            </div>
+                            <div class="form-group"><label>Cédula</label><input type="text" name="cedula" class="form-control cedula" value="<?php echo htmlspecialchars($usuario['cedula']); ?>" required></div>
                             <div class="form-group"><label>Nombres</label><input type="text" name="nombres" class="form-control" value="<?php echo htmlspecialchars($usuario['nombres']); ?>" required></div>
                             <div class="form-group"><label>Apellidos</label><input type="text" name="apellidos" class="form-control" value="<?php echo htmlspecialchars($usuario['apellidos']); ?>" required></div>
                             <div class="form-group"><label>Email</label><input type="email" name="email" class="form-control" value="<?php echo htmlspecialchars($usuario['email']); ?>" required></div>
-                            <div class="form-group">
-                                <label>Teléfono</label>
-                                <input type="text" name="telefono" class="form-control telefono" value="<?php echo htmlspecialchars($usuario['telefono']); ?>" placeholder="0412-1234567">
-                            </div>
+                            <div class="form-group"><label>Teléfono</label><input type="text" name="telefono" class="form-control telefono" value="<?php echo htmlspecialchars($usuario['telefono']); ?>"></div>
                             <div class="form-group">
                                 <label>Rol</label>
                                 <select name="rol" class="form-control" required>
@@ -138,33 +140,41 @@ $es_mismo_usuario = ($usuario['id'] == $_SESSION['usuario_id']);
                                     <option value="docente" <?php echo $usuario['rol']=='docente'?'selected':''; ?>>Docente</option>
                                     <option value="secretario" <?php echo $usuario['rol']=='secretario'?'selected':''; ?>>Secretario</option>
                                 </select>
-                                <small class="form-text">Define los permisos del usuario en el sistema.</small>
                             </div>
                             <div class="form-group full-width">
                                 <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
                                     <input type="checkbox" name="activo" value="1" <?php echo $usuario['activo'] ? 'checked' : ''; ?> style="width: auto;">
-                                    <span>Usuario activo (puede iniciar sesión en el sistema)</span>
+                                    <span>Usuario activo (puede iniciar sesión)</span>
                                 </label>
                             </div>
                         </div>
-                        <div class="form-actions">
+                    </div>
+                </div>
+
+                <div class="card" style="margin-bottom: 20px; border-left: 4px solid #e74c3c;">
+                    <div class="card-header"><h2><i class="fas fa-key"></i> Cambiar Contraseña (Opcional)</h2></div>
+                    <div class="card-body">
+                        <p class="text-muted" style="margin-bottom: 15px;">Deje estos campos en blanco si no desea cambiar la contraseña actual.</p>
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label>Nueva Contraseña</label>
+                                <input type="password" name="new_password" class="form-control" minlength="8" placeholder="Mín. 8 caracteres">
+                                <small class="form-text">Mayúscula, minúscula, número y símbolo.</small>
+                            </div>
+                            <div class="form-group"><label>Confirmar Nueva Contraseña</label><input type="password" name="confirm_password" class="form-control" minlength="8"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-body" style="display: flex; justify-content: space-between;">
+                        <div>
                             <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Guardar Cambios</button>
                             <a href="usuarios.php" class="btn btn-secondary"><i class="fas fa-times"></i> Cancelar</a>
                         </div>
-                    </form>
+                    </div>
                 </div>
-            </div>
-
-            <!-- Info extra -->
-            <div class="card" style="margin-top: 20px;">
-                <div class="card-body">
-                    <small class="text-muted">
-                        <i class="fas fa-info-circle"></i> 
-                        Último acceso: <?php echo $usuario['ultimo_acceso'] ? date('d/m/Y H:i', strtotime($usuario['ultimo_acceso'])) : 'Nunca'; ?> | 
-                        Fecha de creación: <?php echo date('d/m/Y', strtotime($usuario['fecha_creacion'])); ?>
-                    </small>
-                </div>
-            </div>
+            </form>
         </div>
     </main>
 </div>

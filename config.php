@@ -1,5 +1,5 @@
 <?php
-// config.php - Configuración y funciones del sistema (VERSIÓN 3.2 - SIGEB-G)
+// config.php - Configuración y funciones del sistema (VERSIÓN 3.3 - SIGEB-G)
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
@@ -17,7 +17,7 @@ define('DB_CHARSET', 'utf8mb4');
 // 2. CONFIGURACIÓN DE LA APLICACIÓN (URL DINÁMICA)
 // =========================================================
 define('APP_NAME', 'U.E.N. Guarenas');
-define('APP_VERSION', '3.2');
+define('APP_VERSION', '3.3');
 
 $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
 $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
@@ -264,6 +264,9 @@ function getSidebar($currentPage = '') {
                 <li class="nav-item ' . ($currentPage == 'usuarios' ? 'active' : '') . '">
                     <a href="usuarios.php" class="nav-link"><i class="fas fa-users-cog"></i><span>Usuarios</span></a>
                 </li>
+                <li class="nav-item ' . ($currentPage == 'auditoria' ? 'active' : '') . '">
+                    <a href="auditoria.php" class="nav-link"><i class="fas fa-history"></i><span>Auditoría</span></a>
+                </li>
                 <li class="nav-item ' . ($currentPage == 'configuracion' ? 'active' : '') . '">
                     <a href="configuracion.php" class="nav-link"><i class="fas fa-cog"></i><span>Configuración</span></a>
                 </li>';
@@ -296,7 +299,7 @@ function getSidebar($currentPage = '') {
 }
 
 // =========================================================
-// 12. FUNCIONES DE NEGOCIO
+// 12. CARGAR FUNCIONES DE NEGOCIO
 // =========================================================
 require_once __DIR__ . '/functions.php';
 ?>

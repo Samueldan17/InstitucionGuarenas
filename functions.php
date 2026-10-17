@@ -321,4 +321,26 @@ function setConfig($db, $clave, $valor) {
         return false;
     }
 }
+// =========================================================
+// FUNCIÓN: Validar Contraseña Segura
+// =========================================================
+function validarPasswordSegura($password) {
+    // Mínimo 8 caracteres, al menos una mayúscula, una minúscula, un número y un símbolo
+    if (strlen($password) < 8) {
+        return "La contraseña debe tener al menos 8 caracteres.";
+    }
+    if (!preg_match('/[A-Z]/', $password)) {
+        return "La contraseña debe incluir al menos una letra MAYÚSCULA.";
+    }
+    if (!preg_match('/[a-z]/', $password)) {
+        return "La contraseña debe incluir al menos una letra minúscula.";
+    }
+    if (!preg_match('/[0-9]/', $password)) {
+        return "La contraseña debe incluir al menos un número.";
+    }
+    if (!preg_match('/[^A-Za-z0-9]/', $password)) {
+        return "La contraseña debe incluir al menos un símbolo (ej. ! @ # $ %).";
+    }
+    return true; // Contraseña válida
+}
 ?>
