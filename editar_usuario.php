@@ -1,5 +1,5 @@
 <?php
-// editar_usuario.php - Edición de usuario (VERSIÓN 3.6 - Ciberseguridad)
+// editar_usuario.php - Edición de usuario (VERSIÓN 3.8 - Teléfono estilizado)
 require_once 'config.php';
 require_once 'functions.php';
 requireAuth();
@@ -24,7 +24,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $nombres = formatearNombrePropio($_POST['nombres'] ?? '');
         $apellidos = formatearNombrePropio($_POST['apellidos'] ?? '');
         $email = sanitize($_POST['email'] ?? '');
-        $telefono = sanitize($_POST['telefono'] ?? '');
+        
+        $tel_prefijo = $_POST['telefono_prefijo'] ?? '';
+        $tel_numero = trim($_POST['telefono_numero'] ?? '');
+        $telefono = (!empty($tel_prefijo) && !empty($tel_numero)) ? $tel_prefijo . '-' . $tel_numero : '';
+
         $rol = $_POST['rol'] ?? '';
         $activo = isset($_POST['activo']) ? 1 : 0;
         $new_password = $_POST['new_password'] ?? '';
@@ -34,7 +38,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($valid_ced !== true) $error = is_string($valid_ced) ? $valid_ced : "Cédula inválida.";
         elseif (empty($nombres) || empty($apellidos)) $error = "Nombres y apellidos obligatorios.";
         elseif (!validarEmail($email)) $error = "Email inválido.";
-        elseif ($telefono && !validarTelefonoVenezolano($telefono)) $error = "Teléfono inválido.";
+        elseif ($telefono && !validarTelefonoVenezolano($telefono)) $error = "Teléfono inválido. Debe tener 7 dígitos después del prefijo.";
         elseif (!in_array($rol, ['admin','docente','secretario'])) $error = "Rol no válido.";
         elseif (!empty($new_password)) {
             if (($pass_valid = validarPasswordSegura($new_password)) !== true) {
@@ -70,6 +74,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
+// Separar el teléfono existente para mostrarlo en el dropdown
+$tel_prefijo_actual = '';
+$tel_numero_actual = '';
+if (!empty($usuario['telefono'])) {
+    $partes = explode('-', $usuario['telefono']);
+    if (count($partes) == 2) {
+        $tel_prefijo_actual = $partes[0];
+        $tel_numero_actual = $partes[1];
+    } else {
+        $tel_prefijo_actual = substr($usuario['telefono'], 0, 4);
+        $tel_numero_actual = substr($usuario['telefono'], 4);
+    }
+}
+
 $iniciales = strtoupper(substr($usuario['nombres'], 0, 1) . substr($usuario['apellidos'], 0, 1));
 $es_mismo_usuario = ($usuario['id'] == $_SESSION['usuario_id']);
 ?>
@@ -80,6 +98,30 @@ $es_mismo_usuario = ($usuario['id'] == $_SESSION['usuario_id']);
     <title>Editar Usuario - <?php echo APP_NAME; ?></title>
     <link rel="stylesheet" href="<?php echo APP_URL; ?>/assets/css/styles.css">
     <link rel="stylesheet" href="<?php echo APP_URL; ?>/assets/fontawesome/css/all.min.css">
+    <style>    
+     
+        /* Arreglo para que el teléfono no se desborde */
+        .phone-group {
+            display: flex;
+            gap: 8px;
+            width: 100%;
+            align-items: center;
+        }
+        .phone-group select.form-control {
+            width: 85px !important;
+            flex-shrink: 0;
+            padding: 8px 4px;
+            text-align: center;
+        }
+        .phone-group input.form-control {
+            flex: 1;
+            min-width: 0; /* Evita que el input se salga de la caja */
+            padding: 8px;
+        }
+    </style>
+        
+        
+    </style>
 </head>
 <body>
 <div class="dashboard-container">
@@ -132,7 +174,23 @@ $es_mismo_usuario = ($usuario['id'] == $_SESSION['usuario_id']);
                             <div class="form-group"><label>Nombres</label><input type="text" name="nombres" class="form-control" value="<?php echo htmlspecialchars($usuario['nombres']); ?>" required></div>
                             <div class="form-group"><label>Apellidos</label><input type="text" name="apellidos" class="form-control" value="<?php echo htmlspecialchars($usuario['apellidos']); ?>" required></div>
                             <div class="form-group"><label>Email</label><input type="email" name="email" class="form-control" value="<?php echo htmlspecialchars($usuario['email']); ?>" required></div>
-                            <div class="form-group"><label>Teléfono</label><input type="text" name="telefono" class="form-control telefono" value="<?php echo htmlspecialchars($usuario['telefono']); ?>"></div>
+                            
+                            <div class="form-group">
+                                <label>Teléfono</label>
+                                <div class="phone-group">
+                                    <select name="telefono_prefijo" class="form-control">
+                                        <option value="">-</option>
+                                        <option value="0412" <?php echo $tel_prefijo_actual == '0412' ? 'selected' : ''; ?>>0412</option>
+                                        <option value="0414" <?php echo $tel_prefijo_actual == '0414' ? 'selected' : ''; ?>>0414</option>
+                                        <option value="0416" <?php echo $tel_prefijo_actual == '0416' ? 'selected' : ''; ?>>0416</option>
+                                        <option value="0424" <?php echo $tel_prefijo_actual == '0424' ? 'selected' : ''; ?>>0424</option>
+                                        <option value="0426" <?php echo $tel_prefijo_actual == '0426' ? 'selected' : ''; ?>>0426</option>
+                                        <option value="0428" <?php echo $tel_prefijo_actual == '0428' ? 'selected' : ''; ?>>0428</option>
+                                    </select>
+                                    <input type="text" name="telefono_numero" class="form-control" value="<?php echo htmlspecialchars($tel_numero_actual); ?>" placeholder="1234567" maxlength="7" pattern="\d{7}" title="Debe tener exactamente 7 números">
+                                </div>
+                            </div>
+
                             <div class="form-group">
                                 <label>Rol</label>
                                 <select name="rol" class="form-control" required>

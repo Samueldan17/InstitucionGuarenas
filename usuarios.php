@@ -1,5 +1,5 @@
 <?php
-// usuarios.php - Gestión de usuarios (VERSIÓN 3.6 - Ciberseguridad)
+// usuarios.php - Gestión de usuarios (VERSIÓN 3.8 - Teléfono estilizado)
 require_once 'config.php';
 require_once 'functions.php';
 requireAuth();
@@ -18,7 +18,12 @@ if (($_POST['action'] ?? '') == 'crear_usuario') {
             $nombres = formatearNombrePropio($_POST['nombres']);
             $apellidos = formatearNombrePropio($_POST['apellidos']);
             $email = sanitize($_POST['email']);
-            $telefono = sanitize($_POST['telefono']);
+            
+            // Armar el teléfono
+            $tel_prefijo = $_POST['telefono_prefijo'] ?? '';
+            $tel_numero = trim($_POST['telefono_numero'] ?? '');
+            $telefono = (!empty($tel_prefijo) && !empty($tel_numero)) ? $tel_prefijo . '-' . $tel_numero : '';
+            
             $rol = $_POST['rol'];
             $password = $_POST['password'];
             $confirm = $_POST['confirm_password'];
@@ -27,7 +32,7 @@ if (($_POST['action'] ?? '') == 'crear_usuario') {
             if ($validacion !== true) throw new Exception(is_string($validacion) ? $validacion : "Cédula inválida.");
             if (empty($nombres) || empty($apellidos)) throw new Exception("Nombres y apellidos obligatorios.");
             if (!validarEmail($email)) throw new Exception("Email inválido.");
-            if ($telefono && !validarTelefonoVenezolano($telefono)) throw new Exception("Teléfono inválido. Use el formato 0412-1234567");
+            if ($telefono && !validarTelefonoVenezolano($telefono)) throw new Exception("Teléfono inválido. Debe tener 7 dígitos después del prefijo.");
             if (($pass_valid = validarPasswordSegura($password)) !== true) throw new Exception($pass_valid);
             if ($password !== $confirm) throw new Exception("Las contraseñas no coinciden.");
             if (!in_array($rol, ['admin','docente','secretario'])) throw new Exception("Rol no válido.");
@@ -45,7 +50,7 @@ if (($_POST['action'] ?? '') == 'crear_usuario') {
     }
 }
 
-// Eliminar usuario (POST con CSRF)
+// Eliminar usuario
 if (($_POST['action'] ?? '') == 'eliminar_usuario' && isset($_POST['id'])) {
     if (!validateCSRFToken($_POST['csrf_token'] ?? '')) {
         $error = "Token de seguridad inválido.";
@@ -71,6 +76,29 @@ $usuarios = $db->query("SELECT * FROM usuarios WHERE activo = 1 ORDER BY apellid
     <title>Gestión de Usuarios - <?php echo APP_NAME; ?></title>
     <link rel="stylesheet" href="<?php echo APP_URL; ?>/assets/css/styles.css">
     <link rel="stylesheet" href="<?php echo APP_URL; ?>/assets/fontawesome/css/all.min.css">
+    <style>
+            
+        /* Arreglo para que el teléfono no se desborde */
+        .phone-group {
+            display: flex;
+            gap: 8px;
+            width: 100%;
+            align-items: center;
+        }
+        .phone-group select.form-control {
+            width: 85px !important;
+            flex-shrink: 0;
+            padding: 8px 4px;
+            text-align: center;
+        }
+        .phone-group input.form-control {
+            flex: 1;
+            min-width: 0; /* Evita que el input se salga de la caja */
+            padding: 8px;
+        }
+    </style>
+       
+    </style>
 </head>
 <body>
 <div class="dashboard-container">
@@ -155,12 +183,26 @@ $usuarios = $db->query("SELECT * FROM usuarios WHERE activo = 1 ORDER BY apellid
                         <div class="form-group">
                             <label>Cédula</label>
                             <input type="text" name="cedula" class="form-control cedula" required placeholder="Ej: 12345678">
-                            <small class="form-text">Escribe solo los números. El sistema agregará la "V-".</small>
+                            <small class="form-text">Escribe solo los números.</small>
                         </div>
                         <div class="form-group"><label>Nombres</label><input type="text" name="nombres" class="form-control" required></div>
                         <div class="form-group"><label>Apellidos</label><input type="text" name="apellidos" class="form-control" required></div>
                         <div class="form-group"><label>Email</label><input type="email" name="email" class="form-control" required></div>
-                        <div class="form-group"><label>Teléfono</label><input type="text" name="telefono" class="form-control telefono" placeholder="0412-1234567"></div>
+                        <div class="form-group">
+                            <label>Teléfono</label>
+                            <div class="phone-group">
+                                <select name="telefono_prefijo" class="form-control">
+                                    <option value="">-</option>
+                                    <option value="0412">0412</option>
+                                    <option value="0414">0414</option>
+                                    <option value="0416">0416</option>
+                                    <option value="0424">0424</option>
+                                    <option value="0426">0426</option>
+                                    <option value="0428">0428</option>
+                                </select>
+                                <input type="text" name="telefono_numero" class="form-control" placeholder="1234567" maxlength="7" pattern="\d{7}" title="Debe tener exactamente 7 números">
+                            </div>
+                        </div>
                         <div class="form-group">
                             <label>Rol</label>
                             <select name="rol" class="form-control" required>
@@ -172,7 +214,7 @@ $usuarios = $db->query("SELECT * FROM usuarios WHERE activo = 1 ORDER BY apellid
                         <div class="form-group">
                             <label>Contraseña Segura</label>
                             <input type="password" name="password" class="form-control" minlength="8" required placeholder="Mín. 8 caracteres">
-                            <small class="form-text">Debe tener mayúscula, minúscula, número y símbolo.</small>
+                            <small class="form-text">Mayúscula, minúscula, número y símbolo.</small>
                         </div>
                         <div class="form-group"><label>Confirmar</label><input type="password" name="confirm_password" class="form-control" minlength="8" required></div>
                     </div>
