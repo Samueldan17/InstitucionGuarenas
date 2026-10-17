@@ -1,5 +1,5 @@
 <?php
-// editar_estudiante.php - Edición completa (VERSIÓN 3.6)
+// editar_estudiante.php - Edición completa (VERSIÓN 3.8 - Teléfonos estilizados)
 require_once 'config.php';
 require_once 'functions.php';
 requireAuth();
@@ -28,11 +28,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $nacionalidad = sanitize($_POST['nacionalidad'] ?? 'Venezolana');
         $lugar_nacimiento = sanitize($_POST['lugar_nacimiento'] ?? '');
         $direccion = sanitize($_POST['direccion'] ?? '');
-        $tel_contacto = sanitize($_POST['telefono_contacto'] ?? '');
+        
+        // Teléfono Estudiante
+        $tel_est_prefijo = $_POST['telefono_contacto_prefijo'] ?? '';
+        $tel_est_numero = trim($_POST['telefono_contacto_numero'] ?? '');
+        $tel_contacto = (!empty($tel_est_prefijo) && !empty($tel_est_numero)) ? $tel_est_prefijo . '-' . $tel_est_numero : '';
+
         $nombre_rep = formatearNombrePropio($_POST['nombre_representante'] ?? '');
         $cedula_rep = formatearCedulaParaBD($_POST['cedula_representante'] ?? '');
         $email_rep = sanitize($_POST['email_representante'] ?? '');
-        $tel_rep = sanitize($_POST['telefono_representante'] ?? '');
+        
+        // Teléfono Representante
+        $tel_rep_prefijo = $_POST['telefono_representante_prefijo'] ?? '';
+        $tel_rep_numero = trim($_POST['telefono_representante_numero'] ?? '');
+        $tel_rep = (!empty($tel_rep_prefijo) && !empty($tel_rep_numero)) ? $tel_rep_prefijo . '-' . $tel_rep_numero : '';
+
         $parentesco = sanitize($_POST['parentesco'] ?? '');
         $procedencia = sanitize($_POST['procedencia'] ?? '');
         $seccion_id = (int)($_POST['seccion_id'] ?? 0);
@@ -67,7 +77,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $message = "✅ Estudiante actualizado correctamente.";
                 registrarLog('editar_estudiante', 'estudiantes', $id);
                 
-                // Si hay cédula de representante, crear/actualizar vinculación
                 if (!empty($cedula_rep)) {
                     crearYVincularRepresentante($id, $cedula_rep, $nombre_rep, '', $email_rep, $tel_rep, $parentesco ?: 'Representante');
                 }
@@ -82,17 +91,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $secciones = $db->query("SELECT s.id, CONCAT(g.nombre,' ',s.letra,' (',s.turno,')') as nombre FROM secciones s JOIN grados g ON s.grado_id=g.id WHERE s.activo=1 ORDER BY g.orden, s.letra")->fetchAll();
 
-// Representantes vinculados
-$stmt = $db->prepare("
-    SELECT re.*, u.cedula, u.nombres, u.apellidos, u.email 
-    FROM representantes_estudiantes re 
-    JOIN usuarios u ON re.representante_id = u.id 
-    WHERE re.estudiante_id = ?
-");
+$stmt = $db->prepare("SELECT re.*, u.cedula, u.nombres, u.apellidos, u.email FROM representantes_estudiantes re JOIN usuarios u ON re.representante_id = u.id WHERE re.estudiante_id = ?");
 $stmt->execute([$id]);
 $representantes_vinculados = $stmt->fetchAll();
 
 $iniciales = strtoupper(substr($estudiante['nombres'], 0, 1) . substr($estudiante['apellidos'], 0, 1));
+
+// Separar teléfonos para el formulario
+$tel_est_actual = explode('-', $estudiante['telefono_contacto'] . '-');
+$tel_est_prefijo_actual = $tel_est_actual[0];
+$tel_est_numero_actual = $tel_est_actual[1] ?? '';
+
+$tel_rep_actual = explode('-', $estudiante['telefono_representante'] . '-');
+$tel_rep_prefijo_actual = $tel_rep_actual[0];
+$tel_rep_numero_actual = $tel_rep_actual[1] ?? '';
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -101,6 +113,11 @@ $iniciales = strtoupper(substr($estudiante['nombres'], 0, 1) . substr($estudiant
     <title>Editar Estudiante - <?php echo APP_NAME; ?></title>
     <link rel="stylesheet" href="<?php echo APP_URL; ?>/assets/css/styles.css">
     <link rel="stylesheet" href="<?php echo APP_URL; ?>/assets/fontawesome/css/all.min.css">
+    <style>
+        .phone-group { display: flex; gap: 8px; width: 100%; align-items: center; }
+        .phone-group select.form-control { width: 85px !important; flex-shrink: 0; padding: 8px 4px; text-align: center; }
+        .phone-group input.form-control { flex: 1; min-width: 0; padding: 8px; }
+    </style>
 </head>
 <body>
 <div class="dashboard-container">
@@ -109,12 +126,10 @@ $iniciales = strtoupper(substr($estudiante['nombres'], 0, 1) . substr($estudiant
         <header class="main-header">
             <div>
                 <h1><i class="fas fa-user-edit"></i> Editar Estudiante</h1>
-                <p class="text-muted" style="margin: 5px 0 0 0; font-size: 14px;">
-                    Editando a: <strong><?php echo htmlspecialchars($estudiante['nombres'] . ' ' . $estudiante['apellidos']); ?></strong>
-                </p>
+                <p class="text-muted" style="margin: 5px 0 0 0; font-size: 14px;">Editando a: <strong><?php echo htmlspecialchars($estudiante['nombres'] . ' ' . $estudiante['apellidos']); ?></strong></p>
             </div>
             <div class="header-actions">
-                <a href="estudiantes.php" class="btn btn-secondary"><i class="fas fa-arrow-left"></i> Volver al Listado</a>
+                <a href="estudiantes.php" class="btn btn-secondary"><i class="fas fa-arrow-left"></i> Volver</a>
             </div>
         </header>
         <div class="content-container">
@@ -123,41 +138,14 @@ $iniciales = strtoupper(substr($estudiante['nombres'], 0, 1) . substr($estudiant
             
             <div class="card" style="margin-bottom: 20px;">
                 <div class="card-body" style="display: flex; align-items: center; gap: 20px;">
-                    <div style="width: 80px; height: 80px; border-radius: 50%; background: linear-gradient(135deg, #3498db, #2c3e50); color: white; display: flex; align-items: center; justify-content: center; font-size: 32px; font-weight: bold; flex-shrink: 0;">
-                        <?php echo $iniciales; ?>
-                    </div>
+                    <div style="width: 80px; height: 80px; border-radius: 50%; background: linear-gradient(135deg, #3498db, #2c3e50); color: white; display: flex; align-items: center; justify-content: center; font-size: 32px; font-weight: bold; flex-shrink: 0;"><?php echo $iniciales; ?></div>
                     <div>
                         <h2 style="margin: 0;"><?php echo htmlspecialchars($estudiante['nombres'] . ' ' . $estudiante['apellidos']); ?></h2>
-                        <p style="margin: 5px 0; color: #7f8c8d;">
-                            <i class="fas fa-id-card"></i> <?php echo htmlspecialchars($estudiante['cedula']); ?> | 
-                            <i class="fas fa-envelope"></i> <?php echo htmlspecialchars($estudiante['email'] ?: 'Sin email'); ?>
-                        </p>
-                        <span class="badge badge-<?php echo $estudiante['estado']=='activo'?'success':($estudiante['estado']=='inactivo'?'danger':'info'); ?>">
-                            <?php echo ucfirst($estudiante['estado']); ?>
-                        </span>
+                        <p style="margin: 5px 0; color: #7f8c8d;"><i class="fas fa-id-card"></i> <?php echo htmlspecialchars($estudiante['cedula']); ?></p>
+                        <span class="badge badge-<?php echo $estudiante['estado']=='activo'?'success':($estudiante['estado']=='inactivo'?'danger':'info'); ?>"><?php echo ucfirst($estudiante['estado']); ?></span>
                     </div>
                 </div>
             </div>
-
-            <?php if (!empty($representantes_vinculados)): ?>
-            <div class="card" style="margin-bottom: 20px; border-left: 4px solid #27ae60;">
-                <div class="card-header"><h2><i class="fas fa-users"></i> Representantes Vinculados</h2></div>
-                <div class="card-body">
-                    <ul style="list-style: none; padding: 0;">
-                        <?php foreach ($representantes_vinculados as $rep): ?>
-                        <li style="padding: 8px 0; border-bottom: 1px solid #eee;">
-                            <strong><?php echo htmlspecialchars($rep['nombres'] . ' ' . $rep['apellidos']); ?></strong> 
-                            (<?php echo htmlspecialchars($rep['cedula']); ?>) 
-                            - <em><?php echo htmlspecialchars($rep['parentesco']); ?></em>
-                            <?php if ($rep['es_principal']): ?>
-                                <span class="badge badge-success">Principal</span>
-                            <?php endif; ?>
-                        </li>
-                        <?php endforeach; ?>
-                    </ul>
-                </div>
-            </div>
-            <?php endif; ?>
 
             <form method="POST">
                 <input type="hidden" name="csrf_token" value="<?php echo generateCSRFToken(); ?>">
@@ -175,7 +163,22 @@ $iniciales = strtoupper(substr($estudiante['nombres'], 0, 1) . substr($estudiant
                             <div class="form-group"><label>Nacionalidad</label><input type="text" name="nacionalidad" class="form-control" value="<?php echo htmlspecialchars($estudiante['nacionalidad']); ?>"></div>
                             <div class="form-group"><label>Lugar de Nacimiento</label><input type="text" name="lugar_nacimiento" class="form-control" value="<?php echo htmlspecialchars($estudiante['lugar_nacimiento']); ?>"></div>
                             <div class="form-group full-width"><label>Dirección</label><textarea name="direccion" class="form-control" rows="2"><?php echo htmlspecialchars($estudiante['direccion']); ?></textarea></div>
-                            <div class="form-group"><label>Teléfono</label><input type="text" name="telefono_contacto" class="form-control telefono" value="<?php echo htmlspecialchars($estudiante['telefono_contacto']); ?>"></div>
+                            
+                            <div class="form-group">
+                                <label>Teléfono Estudiante</label>
+                                <div class="phone-group">
+                                    <select name="telefono_contacto_prefijo" class="form-control">
+                                        <option value="">-</option>
+                                        <option value="0412" <?php echo $tel_est_prefijo_actual == '0412' ? 'selected' : ''; ?>>0412</option>
+                                        <option value="0414" <?php echo $tel_est_prefijo_actual == '0414' ? 'selected' : ''; ?>>0414</option>
+                                        <option value="0416" <?php echo $tel_est_prefijo_actual == '0416' ? 'selected' : ''; ?>>0416</option>
+                                        <option value="0424" <?php echo $tel_est_prefijo_actual == '0424' ? 'selected' : ''; ?>>0424</option>
+                                        <option value="0426" <?php echo $tel_est_prefijo_actual == '0426' ? 'selected' : ''; ?>>0426</option>
+                                        <option value="0428" <?php echo $tel_est_prefijo_actual == '0428' ? 'selected' : ''; ?>>0428</option>
+                                    </select>
+                                    <input type="text" name="telefono_contacto_numero" class="form-control" value="<?php echo htmlspecialchars($tel_est_numero_actual); ?>" placeholder="1234567" maxlength="7" pattern="\d{7}">
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -184,11 +187,26 @@ $iniciales = strtoupper(substr($estudiante['nombres'], 0, 1) . substr($estudiant
                     <div class="card-header"><h2><i class="fas fa-users"></i> Datos del Representante</h2></div>
                     <div class="card-body">
                         <div class="form-grid">
-                            <div class="form-group"><label>Cédula del Representante</label><input type="text" name="cedula_representante" class="form-control cedula" value="<?php echo htmlspecialchars($estudiante['cedula_representante'] ?? ''); ?>" placeholder="12345678"></div>
+                            <div class="form-group"><label>Cédula del Representante</label><input type="text" name="cedula_representante" class="form-control cedula" value="<?php echo htmlspecialchars($estudiante['cedula_representante'] ?? ''); ?>"></div>
                             <div class="form-group"><label>Nombre del Representante</label><input type="text" name="nombre_representante" class="form-control" value="<?php echo htmlspecialchars($estudiante['nombre_representante']); ?>"></div>
                             <div class="form-group"><label>Parentesco</label><input type="text" name="parentesco" class="form-control" value="<?php echo htmlspecialchars($estudiante['parentesco']); ?>"></div>
                             <div class="form-group"><label>Email del Representante</label><input type="email" name="email_representante" class="form-control" value="<?php echo htmlspecialchars($estudiante['email_representante']); ?>"></div>
-                            <div class="form-group"><label>Teléfono del Representante</label><input type="text" name="telefono_representante" class="form-control telefono" value="<?php echo htmlspecialchars($estudiante['telefono_representante']); ?>"></div>
+                            
+                            <div class="form-group">
+                                <label>Teléfono Representante</label>
+                                <div class="phone-group">
+                                    <select name="telefono_representante_prefijo" class="form-control">
+                                        <option value="">-</option>
+                                        <option value="0412" <?php echo $tel_rep_prefijo_actual == '0412' ? 'selected' : ''; ?>>0412</option>
+                                        <option value="0414" <?php echo $tel_rep_prefijo_actual == '0414' ? 'selected' : ''; ?>>0414</option>
+                                        <option value="0416" <?php echo $tel_rep_prefijo_actual == '0416' ? 'selected' : ''; ?>>0416</option>
+                                        <option value="0424" <?php echo $tel_rep_prefijo_actual == '0424' ? 'selected' : ''; ?>>0424</option>
+                                        <option value="0426" <?php echo $tel_rep_prefijo_actual == '0426' ? 'selected' : ''; ?>>0426</option>
+                                        <option value="0428" <?php echo $tel_rep_prefijo_actual == '0428' ? 'selected' : ''; ?>>0428</option>
+                                    </select>
+                                    <input type="text" name="telefono_representante_numero" class="form-control" value="<?php echo htmlspecialchars($tel_rep_numero_actual); ?>" placeholder="1234567" maxlength="7" pattern="\d{7}">
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -206,7 +224,7 @@ $iniciales = strtoupper(substr($estudiante['nombres'], 0, 1) . substr($estudiant
                 </div>
 
                 <div class="card">
-                    <div class="card-body" style="display: flex; justify-content: space-between; align-items: center;">
+                    <div class="card-body" style="display: flex; justify-content: space-between;">
                         <div>
                             <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Guardar Cambios</button>
                             <a href="estudiantes.php" class="btn btn-secondary"><i class="fas fa-times"></i> Cancelar</a>
