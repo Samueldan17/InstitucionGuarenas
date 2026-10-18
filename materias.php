@@ -1,6 +1,7 @@
 <?php
-// materias.php - Gestión de materias (VERSIÓN 3.3)
+// materias.php - Gestión de materias (VERSIÓN 3.4)
 require_once 'config.php';
+require_once 'functions.php';
 requireAuth();
 
 $db = getDBConnection();
@@ -9,9 +10,7 @@ $id = $_GET['id'] ?? 0;
 $message = $_GET['message'] ?? '';
 $error = $_GET['error'] ?? '';
 
-// =========================================================
-// ÁREAS Y SUS ABREVIATURAS PARA EL CÓDIGO AUTOMÁTICO
-// =========================================================
+// ÁREAS Y ABREVIATURAS
 $areas = [
     'Ciencias Exactas' => 'MAT',
     'Ciencias Naturales' => 'CIE',
@@ -24,22 +23,17 @@ $areas = [
     'Formación para el Trabajo' => 'FPT'
 ];
 
-// =========================================================
-// FUNCIÓN PARA GENERAR CÓDIGO AUTOMÁTICO
-// Formato: MAT-2026-001
-// =========================================================
+// GENERAR CÓDIGO AUTOMÁTICO
 function generarCodigoMateria($db, $area) {
     global $areas;
     $prefijo = $areas[$area] ?? 'GEN';
     $anio = date('Y');
     
-    // Buscar el último código con ese prefijo y año
     $stmt = $db->prepare("SELECT codigo FROM materias WHERE codigo LIKE ? ORDER BY id DESC LIMIT 1");
     $stmt->execute([$prefijo . '-' . $anio . '-%']);
     $ultimo = $stmt->fetch();
     
     if ($ultimo) {
-        // Extraer el número secuencial y sumarle 1
         $partes = explode('-', $ultimo['codigo']);
         $secuencial = intval(end($partes)) + 1;
     } else {
@@ -49,9 +43,7 @@ function generarCodigoMateria($db, $area) {
     return $prefijo . '-' . $anio . '-' . str_pad($secuencial, 3, '0', STR_PAD_LEFT);
 }
 
-// =========================================================
 // TOGGLE (ACTIVAR/DESACTIVAR)
-// =========================================================
 if ($action === 'toggle' && $id > 0 && $_SESSION['usuario_rol'] === 'admin') {
     try {
         $stmt = $db->prepare("SELECT activo FROM materias WHERE id = ?");
@@ -71,9 +63,7 @@ if ($action === 'toggle' && $id > 0 && $_SESSION['usuario_rol'] === 'admin') {
     exit;
 }
 
-// =========================================================
 // CREAR Y ACTUALIZAR
-// =========================================================
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!validateCSRFToken($_POST['csrf_token'] ?? '')) {
         $error = "Token de seguridad inválido.";
@@ -87,30 +77,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
         try {
             if ($_POST['action'] === 'create') {
-                // Generar código automáticamente
                 $data['codigo'] = generarCodigoMateria($db, $data['area']);
-                
                 $stmt = $db->prepare("INSERT INTO materias (codigo, nombre, area, descripcion, horas_semanales) VALUES (?, ?, ?, ?, ?)");
-                $stmt->execute([
-                    $data['codigo'],
-                    $data['nombre'],
-                    $data['area'],
-                    $data['descripcion'],
-                    $data['horas_semanales']
-                ]);
+                $stmt->execute([$data['codigo'], $data['nombre'], $data['area'], $data['descripcion'], $data['horas_semanales']]);
                 $message = "Materia registrada exitosamente con código " . $data['codigo'];
                 registrarLog('crear_materia', 'materias', $db->lastInsertId());
                 $action = 'list';
             } elseif ($_POST['action'] === 'update') {
                 $materia_id = $_POST['materia_id'];
                 $stmt = $db->prepare("UPDATE materias SET nombre = ?, area = ?, descripcion = ?, horas_semanales = ? WHERE id = ?");
-                $stmt->execute([
-                    $data['nombre'],
-                    $data['area'],
-                    $data['descripcion'],
-                    $data['horas_semanales'],
-                    $materia_id
-                ]);
+                $stmt->execute([$data['nombre'], $data['area'], $data['descripcion'], $data['horas_semanales'], $materia_id]);
                 $message = "Materia actualizada exitosamente";
                 registrarLog('editar_materia', 'materias', $materia_id);
                 $action = 'list';
@@ -121,9 +97,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// =========================================================
 // CARGAR MATERIA PARA EDITAR/VER
-// =========================================================
 if (($action === 'edit' || $action === 'view') && $id > 0) {
     $stmt = $db->prepare("SELECT * FROM materias WHERE id = ?");
     $stmt->execute([$id]);
@@ -131,9 +105,7 @@ if (($action === 'edit' || $action === 'view') && $id > 0) {
     if (!$materia) { $error = "Materia no encontrada"; $action = 'list'; }
 }
 
-// =========================================================
 // LISTADO CON PAGINACIÓN Y BÚSQUEDA
-// =========================================================
 $page = isset($_GET['page']) ? max(1, intval($_GET['page'])) : 1;
 $perPage = 10;
 $offset = ($page - 1) * $perPage;
@@ -164,6 +136,29 @@ if ($action === 'list') {
     <title>Gestión de Materias - <?php echo APP_NAME; ?></title>
     <link rel="stylesheet" href="<?php echo APP_URL; ?>/assets/css/styles.css">
     <link rel="stylesheet" href="<?php echo APP_URL; ?>/assets/fontawesome/css/all.min.css">
+    <style>
+        /* Arreglo para el temblor y alineación de los botones */
+        .actions {
+            display: flex;
+            gap: 5px; /* Separación entre botones */
+            justify-content: center;
+            align-items: center;
+        }
+        .actions .btn-sm {
+            width: 32px;
+            height: 32px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+            transition: none !important; /* Quita la animación que causa el temblor */
+        }
+        .actions form {
+            margin: 0; 
+            padding: 0;
+            display: inline-flex;
+        }
+    </style>
 </head>
 <body>
 <div class="dashboard-container">

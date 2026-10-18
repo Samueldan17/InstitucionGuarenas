@@ -236,6 +236,7 @@ function getSidebar($currentPage = '') {
                 <a href="logout.php" class="nav-link"><i class="fas fa-sign-out-alt"></i><span>Cerrar Sesión</span></a>
             </li>';
     } else {
+        // MENÚ PARA ADMIN, DOCENTE Y SECRETARIO
         $sidebar .= '
             <li class="nav-item ' . ($currentPage == 'dashboard' ? 'active' : '') . '">
                 <a href="dashboard.php" class="nav-link"><i class="fas fa-tachometer-alt"></i><span>Dashboard</span></a>
@@ -252,6 +253,9 @@ function getSidebar($currentPage = '') {
             <li class="nav-item ' . ($currentPage == 'secciones' ? 'active' : '') . '">
                 <a href="secciones.php" class="nav-link"><i class="fas fa-users"></i><span>Secciones</span></a>
             </li>
+            <li class="nav-item ' . ($currentPage == 'carga_academica' ? 'active' : '') . '">
+                <a href="carga_academica.php" class="nav-link"><i class="fas fa-chalkboard-teacher"></i><span>Carga Académica</span></a>
+            </li>
             <li class="nav-item ' . ($currentPage == 'boletas' ? 'active' : '') . '">
                 <a href="boletas.php" class="nav-link"><i class="fas fa-file-alt"></i><span>Boletas</span></a>
             </li>
@@ -259,6 +263,7 @@ function getSidebar($currentPage = '') {
                 <a href="reportes.php" class="nav-link"><i class="fas fa-chart-bar"></i><span>Reportes</span></a>
             </li>';
         
+        // MENÚ EXCLUSIVO DEL ADMIN
         if ($rol === 'admin') {
             $sidebar .= '
                 <li class="nav-item ' . ($currentPage == 'usuarios' ? 'active' : '') . '">
@@ -297,9 +302,3 @@ function getSidebar($currentPage = '') {
     
     return $sidebar;
 }
-
-// =========================================================
-// 12. CARGAR FUNCIONES DE NEGOCIO
-// =========================================================
-require_once __DIR__ . '/functions.php';
-?>
