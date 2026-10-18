@@ -1,5 +1,5 @@
 <?php
-// estudiantes.php - Gestión de Estudiantes (VERSIÓN 3.8 - Teléfonos estilizados)
+// estudiantes.php - Gestión de Estudiantes (VERSIÓN 3.9 - Validación de Edad)
 require_once 'config.php';
 require_once 'functions.php';
 requireAuth();
@@ -24,7 +24,6 @@ if (($_POST['action'] ?? '') == 'crear_estudiante') {
             $lugar_nacimiento = sanitize($_POST['lugar_nacimiento'] ?? '');
             $direccion = sanitize($_POST['direccion'] ?? '');
             
-            // Teléfono Estudiante
             $tel_est_prefijo = $_POST['telefono_contacto_prefijo'] ?? '';
             $tel_est_numero = trim($_POST['telefono_contacto_numero'] ?? '');
             $telefono_contacto = (!empty($tel_est_prefijo) && !empty($tel_est_numero)) ? $tel_est_prefijo . '-' . $tel_est_numero : '';
@@ -33,7 +32,6 @@ if (($_POST['action'] ?? '') == 'crear_estudiante') {
             $cedula_representante = formatearCedulaParaBD($_POST['cedula_representante'] ?? '');
             $email_representante = sanitize($_POST['email_representante'] ?? '');
             
-            // Teléfono Representante
             $tel_rep_prefijo = $_POST['telefono_representante_prefijo'] ?? '';
             $tel_rep_numero = trim($_POST['telefono_representante_numero'] ?? '');
             $telefono_representante = (!empty($tel_rep_prefijo) && !empty($tel_rep_numero)) ? $tel_rep_prefijo . '-' . $tel_rep_numero : '';
@@ -43,12 +41,23 @@ if (($_POST['action'] ?? '') == 'crear_estudiante') {
             $seccion_id = (int)($_POST['seccion_id'] ?? 0);
             $fecha_inscripcion = $_POST['fecha_inscripcion'] ?? date('Y-m-d');
 
+            // VALIDACIONES
             $validacion = validarCedulaVenezolana($cedula);
             if ($validacion !== true) throw new Exception(is_string($validacion) ? $validacion : "Cédula inválida.");
             if (empty($nombres) || empty($apellidos)) throw new Exception("Los nombres y apellidos son obligatorios");
             if (empty($seccion_id)) throw new Exception("Debe seleccionar una sección");
             if ($email && !validarEmail($email)) throw new Exception("El email del estudiante no es válido");
             if ($email_representante && !validarEmail($email_representante)) throw new Exception("El email del representante no es válido");
+
+            // VALIDACIÓN DE EDAD (Entre 10 y 25 años)
+            if (!empty($fecha_nacimiento)) {
+                $fecha_nac_obj = new DateTime($fecha_nacimiento);
+                $hoy = new DateTime();
+                $edad = $hoy->diff($fecha_nac_obj)->y;
+                if ($edad < 10 || $edad > 25) {
+                    throw new Exception("La fecha de nacimiento no es válida. El estudiante debe tener entre 10 y 25 años.");
+                }
+            }
 
             $stmt = $db->prepare("SELECT id FROM estudiantes WHERE cedula = ?");
             $stmt->execute([$cedula]);
@@ -155,6 +164,10 @@ $totalActivos = $db->query("SELECT COUNT(*) FROM estudiantes WHERE estado = 'act
 $totalInactivos = $db->query("SELECT COUNT(*) FROM estudiantes WHERE estado = 'inactivo'")->fetchColumn();
 $totalConUsuario = $db->query("SELECT COUNT(*) FROM estudiantes WHERE usuario_id IS NOT NULL AND estado = 'activo'")->fetchColumn();
 $totalSinUsuario = $db->query("SELECT COUNT(*) FROM estudiantes WHERE usuario_id IS NULL AND estado = 'activo'")->fetchColumn();
+
+// Calcular fecha máxima permitida (10 años atrás) y mínima (25 años atrás)
+$fecha_max = date('Y-m-d', strtotime('-10 years'));
+$fecha_min = date('Y-m-d', strtotime('-25 years'));
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -292,7 +305,12 @@ $totalSinUsuario = $db->query("SELECT COUNT(*) FROM estudiantes WHERE usuario_id
                         <div class="form-group"><label>Nombres</label><input type="text" name="nombres" class="form-control" required></div>
                         <div class="form-group"><label>Apellidos</label><input type="text" name="apellidos" class="form-control" required></div>
                         <div class="form-group"><label>Email</label><input type="email" name="email" class="form-control"></div>
-                        <div class="form-group"><label>Fecha Nacimiento</label><input type="date" name="fecha_nacimiento" class="form-control"></div>
+                        <div class="form-group">
+                            <label>Fecha Nacimiento</label>
+                            <!-- LÍMITES DE FECHA: Mínimo 10 años atrás, máximo 25 años atrás -->
+                            <input type="date" name="fecha_nacimiento" class="form-control" min="<?php echo $fecha_min; ?>" max="<?php echo $fecha_max; ?>" required>
+                            <small class="form-text">Entre 10 y 25 años de edad.</small>
+                        </div>
                         <div class="form-group"><label>Género</label><select name="genero" class="form-control"><option value="">Seleccione...</option><option value="M">Masculino</option><option value="F">Femenino</option></select></div>
                         <div class="form-group"><label>Nacionalidad</label><input type="text" name="nacionalidad" class="form-control" value="Venezolana"></div>
                         <div class="form-group"><label>Lugar de Nacimiento</label><input type="text" name="lugar_nacimiento" class="form-control"></div>
