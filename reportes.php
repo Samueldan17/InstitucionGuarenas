@@ -1,5 +1,5 @@
 <?php
-// reportes.php - Sistema de reportes completo (VERSIÓN 3.6 - Acta de Cierre)
+// reportes.php - Sistema de reportes completo (VERSIÓN 3.7 - PDF Acta Corregido)
 require_once 'config.php';
 require_once 'functions.php';
 requireAuth();
@@ -135,6 +135,79 @@ if ($tipo_reporte === 'acta' && $seccion_id) {
     while ($row = $stmtNotas->fetch()) {
         $acta_notas[$row['estudiante_id']][$row['materia_id']] = $row['nota'];
     }
+}
+
+// =========================================================
+// EXPORTAR ACTA A PDF CON DOMPDF (Ahora sí, con los datos cargados)
+// =========================================================
+if ($accion === 'pdf' && $tipo_reporte === 'acta' && $seccion_id) {
+    require_once __DIR__ . '/vendor/autoload.php';
+    
+    ob_start();
+    ?>
+    <style>
+        body { font-family: 'Times New Roman', serif; font-size: 11px; }
+        .acta-header { text-align: center; margin-bottom: 15px; }
+        .acta-header h2 { margin: 0; font-size: 14px; }
+        .acta-header p { margin: 2px 0; font-size: 11px; }
+        .acta-table { width: 100%; border-collapse: collapse; text-align: center; }
+        .acta-table th, .acta-table td { border: 1px solid #000; padding: 4px; }
+        .acta-table th { background: #f0f0f0; font-weight: bold; }
+        .acta-table td.estudiante { text-align: left; }
+        .firmas-container { display: flex; justify-content: space-between; margin-top: 40px; text-align: center; }
+        .firma { border-top: 1px solid #000; width: 180px; padding-top: 5px; }
+    </style>
+
+    <div class="acta-header">
+        <h2>REPÚBLICA BOLIVARIANA DE VENEZUELA</h2>
+        <p>MINISTERIO DEL PODER POPULAR PARA LA EDUCACIÓN</p>
+        <p><strong><?php echo APP_NAME; ?></strong></p>
+        <p>ACTA DE CALIFICACIONES - <?php echo strtoupper($lapso); ?>er LAPSO</p>
+        <p>Año Escolar: <?php echo $anio_escolar_texto; ?></p>
+    </div>
+
+    <table class="acta-table">
+        <thead>
+            <tr>
+                <th style="width: 30px;">Nº</th>
+                <th style="text-align: left;">Apellidos y Nombres</th>
+                <th style="width: 80px;">Cédula</th>
+                <?php foreach ($acta_materias as $mat): ?>
+                    <th><?php echo htmlspecialchars($mat['nombre']); ?></th>
+                <?php endforeach; ?>
+            </tr>
+        </thead>
+        <tbody>
+            <?php $i = 1; foreach ($acta_estudiantes as $est): ?>
+            <tr>
+                <td><?php echo $i++; ?></td>
+                <td class="estudiante"><?php echo htmlspecialchars($est['apellidos'] . ', ' . $est['nombres']); ?></td>
+                <td><?php echo htmlspecialchars($est['cedula']); ?></td>
+                <?php foreach ($acta_materias as $mat): 
+                    $nota = $acta_notas[$est['id']][$mat['id']] ?? '';
+                ?>
+                    <td><?php echo $nota !== '' ? number_format($nota, 0) : '—'; ?></td>
+                <?php endforeach; ?>
+            </tr>
+            <?php endforeach; ?>
+        </tbody>
+    </table>
+
+    <div class="firmas-container">
+        <div class="firma"><strong>Prof. Jhony Castro</strong><br>Director</div>
+        <div class="firma"><strong><?php echo htmlspecialchars($docente_guia); ?></strong><br>Docente Guía</div>
+        <div class="firma"><strong>Coordinación</strong><br>Evaluación y Control de Estudios</div>
+    </div>
+    <?php
+    $html = ob_get_clean();
+
+    $dompdf = new \Dompdf\Dompdf();
+    $dompdf->loadHtml($html);
+    $dompdf->setPaper('letter', 'landscape'); // Horizontal para que quepan las materias
+    $dompdf->render();
+    
+    $dompdf->stream("Acta_" . $lapso . "Lapso_" . date('Ymd') . ".pdf", array("Attachment" => false));
+    exit;
 }
 ?>
 <!DOCTYPE html>
@@ -314,6 +387,16 @@ if ($tipo_reporte === 'acta' && $seccion_id) {
                             </div>
                             <?php endif; ?>
                         </form>
+                        
+                        <!-- BOTÓN PDF CORREGIDO: Ahora sí está en la pestaña del Acta -->
+                        <?php if ($seccion_id && !empty($acta_estudiantes)): ?>
+                        <div style="text-align: right; margin-top: 15px;">
+                            <a href="?tipo_reporte=acta&grado_id=<?php echo $grado_id; ?>&seccion_id=<?php echo $seccion_id; ?>&lapso=<?php echo $lapso; ?>&accion=pdf" target="_blank" class="btn btn-success">
+                                <i class="fas fa-file-pdf"></i> Descargar PDF
+                            </a>
+                        </div>
+                        <?php endif; ?>
+                        
                     </div>
                 </div>
 

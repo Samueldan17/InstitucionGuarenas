@@ -1,17 +1,16 @@
 <?php
-// boletas.php - Generación de boletines (VERSIÓN 3.5)
+// boletas.php - Generación de boletines (VERSIÓN 3.6 - Exportar PDF)
 require_once 'config.php';
 require_once 'functions.php';
 requireAuth();
 
 $db = getDBConnection();
-
-// Datos desde POST (panel estudiante) o GET (admin)
 $estudiante_id = (int)($_POST['estudiante_id'] ?? $_GET['estudiante_id'] ?? 0);
 $lapso = (int)($_POST['lapso'] ?? $_GET['lapso'] ?? 1);
 $anio_escolar = (int)($_POST['anio_escolar'] ?? $_GET['anio_escolar'] ?? date('Y'));
+$accion = $_GET['accion'] ?? '';
 
-// Si viene del panel estudiante, verificar que sea su propio estudiante
+// Verificar permisos si es estudiante
 if ($_SESSION['usuario_rol'] === 'estudiante') {
     $estudiante_actual = getEstudiantePorUsuario($_SESSION['usuario_id']);
     if (!$estudiante_actual || $estudiante_actual['id'] != $estudiante_id) {
@@ -20,27 +19,16 @@ if ($_SESSION['usuario_rol'] === 'estudiante') {
     }
 }
 
-// Si es admin y no hay estudiante seleccionado, mostrar selector
 $mostrar_selector = ($estudiante_id == 0 && in_array($_SESSION['usuario_rol'], ['admin', 'docente', 'secretario']));
 
-// Listas para el selector del admin
 $estudiantes = [];
-$secciones_admin = [];
 $anios_disponibles = [];
 if ($mostrar_selector) {
-    $estudiantes = $db->query("
-        SELECT e.id, e.cedula, e.nombres, e.apellidos, g.nombre as grado, s.letra as seccion
-        FROM estudiantes e
-        LEFT JOIN secciones s ON e.seccion_id = s.id
-        LEFT JOIN grados g ON s.grado_id = g.id
-        WHERE e.estado = 'activo'
-        ORDER BY e.apellidos, e.nombres
-    ")->fetchAll();
+    $estudiantes = $db->query("SELECT e.id, e.cedula, e.nombres, e.apellidos, g.nombre as grado, s.letra as seccion FROM estudiantes e LEFT JOIN secciones s ON e.seccion_id = s.id LEFT JOIN grados g ON s.grado_id = g.id WHERE e.estado = 'activo' ORDER BY e.apellidos, e.nombres")->fetchAll();
     $anios_disponibles = $db->query("SELECT DISTINCT anio_escolar FROM notas ORDER BY anio_escolar DESC")->fetchAll(PDO::FETCH_COLUMN);
     if (empty($anios_disponibles)) $anios_disponibles = [date('Y')];
 }
 
-// Generar boleta si hay estudiante seleccionado
 $boleta_data = null;
 $error_boleta = null;
 if ($estudiante_id > 0) {
@@ -49,6 +37,27 @@ if ($estudiante_id > 0) {
         $error_boleta = $boleta_data['error'];
         $boleta_data = null;
     }
+}
+
+// =========================================================
+// EXPORTAR A PDF CON DOMPDF
+// =========================================================
+if ($accion === 'pdf' && $boleta_data) {
+    require_once __DIR__ . '/vendor/autoload.php';
+    
+    ob_start();
+    include __DIR__ . '/templates/boleta_template.php';
+    $html = ob_get_clean();
+
+    $dompdf = new \Dompdf\Dompdf();
+    $dompdf->loadHtml($html);
+    $dompdf->setPaper('letter', 'portrait');
+    $dompdf->render();
+    
+    // Nombre del archivo
+    $nombre_archivo = "Boletin_" . $boleta_data['info_estudiante']['cedula'] . "_Lapso" . $lapso . ".pdf";
+    $dompdf->stream($nombre_archivo, array("Attachment" => false)); // false = abrir en navegador, true = descargar directo
+    exit;
 }
 ?>
 <!DOCTYPE html>
@@ -76,7 +85,6 @@ if ($estudiante_id > 0) {
         <div class="content-container">
 
             <?php if ($mostrar_selector): ?>
-            <!-- Selector para admin -->
             <div class="card no-print">
                 <div class="card-header"><h2><i class="fas fa-search"></i> Seleccionar Estudiante</h2></div>
                 <div class="card-body">
@@ -117,20 +125,20 @@ if ($estudiante_id > 0) {
             <?php endif; ?>
 
             <?php if ($error_boleta): ?>
-                <div class="alert alert-warning">
-                    <i class="fas fa-info-circle"></i> <?php echo htmlspecialchars($error_boleta); ?>
-                </div>
+                <div class="alert alert-warning"><i class="fas fa-info-circle"></i> <?php echo htmlspecialchars($error_boleta); ?></div>
             <?php endif; ?>
 
             <?php if ($boleta_data): ?>
-                <!-- Botones de acción -->
                 <div class="no-print" style="margin-bottom: 15px; display: flex; gap: 10px; justify-content: flex-end;">
-                    <button onclick="window.print()" class="btn btn-primary">
+                    <button onclick="window.print()" class="btn btn-secondary">
                         <i class="fas fa-print"></i> Imprimir
                     </button>
+                    <!-- BOTÓN MÁGICO PARA PDF -->
+                    <a href="?accion=pdf&estudiante_id=<?php echo $estudiante_id; ?>&lapso=<?php echo $lapso; ?>&anio_escolar=<?php echo $anio_escolar; ?>" target="_blank" class="btn btn-success">
+                        <i class="fas fa-file-pdf"></i> Descargar PDF
+                    </a>
                 </div>
 
-                <!-- Boleta -->
                 <div class="boleta-container" id="boleta">
                     <?php include __DIR__ . '/templates/boleta_template.php'; ?>
                 </div>
