@@ -237,8 +237,11 @@ function getSidebar($currentPage = '') {
             </li>
             <li class="nav-item ' . ($currentPage == 'reportes' ? 'active' : '') . '">
                 <a href="reportes.php" class="nav-link"><i class="fas fa-chart-bar"></i><span>Reportes</span></a>
-            </li>';
-        
+            </li> 
+                <li class="nav-item ' . ($currentPage == 'alertas' ? 'active' : '') . '">
+                <a href="alertas.php" class="nav-link"><i class="fas fa-exclamation-triangle"></i><span>Alertas</span></a>
+            </li>'
+            ;
         if ($rol === 'admin') {
             $sidebar .= '
                 <li class="nav-item ' . ($currentPage == 'usuarios' ? 'active' : '') . '">
