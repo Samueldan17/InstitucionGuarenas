@@ -1,5 +1,5 @@
 <?php
-// asignar_notas.php - Carga de notas por lapso (VERSIÓN 4.0)
+// asignar_notas.php - Carga de notas por lapso (VERSIÓN 4.1 - Con bloqueo de lapso)
 require_once 'config.php';
 require_once 'functions.php';
 requireAuth();
@@ -11,22 +11,23 @@ $error = $_GET['error'] ?? '';
 $docente_id = $_SESSION['usuario_id'];
 $rol = $_SESSION['usuario_rol'];
 
-// Año escolar activo
 $anio_escolar_texto = getConfig($db, 'anio_escolar_activo', date('Y') . '-' . (date('Y') + 1));
 $anio_escolar = (int)explode('-', $anio_escolar_texto)[0];
 
-// Filtros
 $grado_id = (int)($_GET['grado_id'] ?? 0);
 $seccion_id = (int)($_GET['seccion_id'] ?? 0);
 $materia_id = (int)($_GET['materia_id'] ?? 0);
 $lapso = (int)($_GET['lapso'] ?? 1);
 
-// =========================================================
+// VERIFICAR SI EL LAPSO ESTÁ CERRADO
+$lapso_cerrado = getConfig($db, 'lapso_' . $lapso . '_cerrado', '0') == '1';
+
 // GUARDAR NOTAS
-// =========================================================
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['guardar_notas'])) {
     if (!validateCSRFToken($_POST['csrf_token'] ?? '')) {
         $error = "Token inválido.";
+    } elseif ($lapso_cerrado) {
+        $error = "❌ El Lapso $lapso está cerrado. No puede guardar notas.";
     } else {
         $seccion_id_post = (int)$_POST['seccion_id'];
         $materia_id_post = (int)$_POST['materia_id'];
@@ -35,7 +36,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['guardar_notas'])) {
         $notas_post = $_POST['notas'] ?? [];
         
         try {
-            // Buscar el seccion_materia_id
             $stmt = $db->prepare("SELECT id FROM seccion_materias WHERE seccion_id = ? AND materia_id = ? AND anio_escolar = ?");
             $stmt->execute([$seccion_id_post, $materia_id_post, $anio_post]);
             $sm = $stmt->fetch();
@@ -49,7 +49,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['guardar_notas'])) {
                 $nota = trim($nota);
                 
                 if ($nota === '') {
-                    // Borrar si existe
                     $stmt = $db->prepare("DELETE FROM notas WHERE estudiante_id = ? AND seccion_materia_id = ? AND lapso = ? AND es_recuperacion = 0 AND anio_escolar = ?");
                     $stmt->execute([$estudiante_id, $seccion_materia_id, $lapso_post, $anio_post]);
                     continue;
@@ -58,7 +57,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['guardar_notas'])) {
                 $nota = floatval($nota);
                 if ($nota < 0 || $nota > 20) continue;
                 
-                // Insertar o actualizar
                 $stmt = $db->prepare("
                     INSERT INTO notas (estudiante_id, seccion_materia_id, lapso, nota, es_recuperacion, anio_escolar)
                     VALUES (?, ?, ?, ?, 0, ?)
@@ -78,11 +76,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['guardar_notas'])) {
     exit;
 }
 
-// =========================================================
 // CARGAR DATOS
-// =========================================================
 $grados = $db->query("SELECT * FROM grados WHERE activo = 1 ORDER BY orden")->fetchAll();
-
 $secciones_disponibles = [];
 if ($grado_id) {
     $stmt = $db->prepare("SELECT * FROM secciones WHERE grado_id = ? AND activo = 1 ORDER BY letra");
@@ -92,24 +87,11 @@ if ($grado_id) {
 
 $materias_disponibles = [];
 if ($seccion_id) {
-    // Si es docente, solo sus materias. Si es admin, todas.
     if ($rol === 'docente') {
-        $stmt = $db->prepare("
-            SELECT sm.id, m.id AS materia_id, m.nombre, m.area
-            FROM seccion_materias sm
-            JOIN materias m ON sm.materia_id = m.id
-            WHERE sm.seccion_id = ? AND sm.anio_escolar = ? AND sm.docente_id = ?
-            ORDER BY m.nombre
-        ");
+        $stmt = $db->prepare("SELECT sm.id, m.id AS materia_id, m.nombre, m.area FROM seccion_materias sm JOIN materias m ON sm.materia_id = m.id WHERE sm.seccion_id = ? AND sm.anio_escolar = ? AND sm.docente_id = ? ORDER BY m.nombre");
         $stmt->execute([$seccion_id, $anio_escolar, $docente_id]);
     } else {
-        $stmt = $db->prepare("
-            SELECT sm.id, m.id AS materia_id, m.nombre, m.area
-            FROM seccion_materias sm
-            JOIN materias m ON sm.materia_id = m.id
-            WHERE sm.seccion_id = ? AND sm.anio_escolar = ?
-            ORDER BY m.nombre
-        ");
+        $stmt = $db->prepare("SELECT sm.id, m.id AS materia_id, m.nombre, m.area FROM seccion_materias sm JOIN materias m ON sm.materia_id = m.id WHERE sm.seccion_id = ? AND sm.anio_escolar = ? ORDER BY m.nombre");
         $stmt->execute([$seccion_id, $anio_escolar]);
     }
     $materias_disponibles = $stmt->fetchAll();
@@ -118,34 +100,25 @@ if ($seccion_id) {
 $estudiantes = [];
 $notas_existentes = [];
 if ($seccion_id && $materia_id) {
-    // Buscar el seccion_materia_id
     $stmt = $db->prepare("SELECT id FROM seccion_materias WHERE seccion_id = ? AND materia_id = ? AND anio_escolar = ?");
     $stmt->execute([$seccion_id, $materia_id, $anio_escolar]);
     $sm = $stmt->fetch();
     
     if ($sm) {
         $seccion_materia_id = $sm['id'];
-        
-        // Estudiantes
         $stmt = $db->prepare("SELECT id, cedula, nombres, apellidos FROM estudiantes WHERE seccion_id = ? AND estado = 'activo' ORDER BY apellidos, nombres");
         $stmt->execute([$seccion_id]);
         $estudiantes = $stmt->fetchAll();
         
-        // Notas existentes del lapso
         $stmt = $db->prepare("SELECT estudiante_id, nota FROM notas WHERE seccion_materia_id = ? AND lapso = ? AND es_recuperacion = 0 AND anio_escolar = ?");
         $stmt->execute([$seccion_materia_id, $lapso, $anio_escolar]);
-        foreach ($stmt as $n) {
-            $notas_existentes[$n['estudiante_id']] = $n['nota'];
-        }
+        foreach ($stmt as $n) { $notas_existentes[$n['estudiante_id']] = $n['nota']; }
     }
 }
 
 $materia_actual = null;
 foreach ($materias_disponibles as $m) {
-    if ($m['materia_id'] == $materia_id) {
-        $materia_actual = $m;
-        break;
-    }
+    if ($m['materia_id'] == $materia_id) { $materia_actual = $m; break; }
 }
 ?>
 <!DOCTYPE html>
@@ -156,22 +129,8 @@ foreach ($materias_disponibles as $m) {
     <link rel="stylesheet" href="<?php echo APP_URL; ?>/assets/css/styles.css">
     <link rel="stylesheet" href="<?php echo APP_URL; ?>/assets/fontawesome/css/all.min.css">
     <style>
-        .nota-input {
-            width: 70px;
-            text-align: center;
-            font-weight: bold;
-            font-size: 15px;
-        }
-        .nota-badge {
-            display: inline-block;
-            padding: 4px 12px;
-            border-radius: 12px;
-            font-weight: bold;
-            font-size: 13px;
-        }
-        .nota-aprobado { background: #d4edda; color: #155724; }
-        .nota-reprobado { background: #f8d7da; color: #721c24; }
-        .nota-vacia { background: #e1e4e8; color: #586069; }
+        .nota-input { width: 70px; text-align: center; font-weight: bold; font-size: 15px; }
+        .nota-input:disabled { background-color: #e9ecef; cursor: not-allowed; color: #6c757d; }
     </style>
 </head>
 <body>
@@ -237,6 +196,15 @@ foreach ($materias_disponibles as $m) {
             </div>
 
             <?php if ($seccion_id && $materia_id && !empty($estudiantes)): ?>
+            
+            <?php if ($lapso_cerrado): ?>
+                <div class="alert alert-danger" style="font-size: 16px; text-align: center; padding: 20px;">
+                    <i class="fas fa-lock fa-2x" style="display: block; margin-bottom: 10px;"></i>
+                    <strong>EL LAPSO <?php echo $lapso; ?> ESTÁ CERRADO.</strong><br>
+                    Las notas no pueden ser modificadas. Contacte al administrador si necesita hacer una corrección.
+                </div>
+            <?php endif; ?>
+
             <form method="POST">
                 <input type="hidden" name="csrf_token" value="<?php echo generateCSRFToken(); ?>">
                 <input type="hidden" name="guardar_notas" value="1">
@@ -250,19 +218,16 @@ foreach ($materias_disponibles as $m) {
                         <h2><i class="fas fa-table"></i> <?php echo htmlspecialchars($materia_actual['nombre'] ?? 'Materia'); ?> - <?php echo $lapso; ?>er Lapso</h2>
                         <div class="card-actions">
                             <span class="badge badge-info"><?php echo $anio_escolar_texto; ?></span>
-                            <button type="submit" class="btn btn-success"><i class="fas fa-save"></i> Guardar Notas</button>
+                            <?php if (!$lapso_cerrado): ?>
+                                <button type="submit" class="btn btn-success"><i class="fas fa-save"></i> Guardar Notas</button>
+                            <?php endif; ?>
                         </div>
                     </div>
                     <div class="card-body">
                         <div class="table-responsive">
                             <table class="data-table">
                                 <thead>
-                                    <tr>
-                                        <th>Nº</th>
-                                        <th>Apellidos y Nombres</th>
-                                        <th>Cédula</th>
-                                        <th style="text-align: center;">Nota (0-20)</th>
-                                    </tr>
+                                    <tr><th>Nº</th><th>Apellidos y Nombres</th><th>Cédula</th><th style="text-align: center;">Nota (0-20)</th></tr>
                                 </thead>
                                 <tbody>
                                     <?php $i = 1; foreach ($estudiantes as $est): 
@@ -278,17 +243,13 @@ foreach ($materias_disponibles as $m) {
                                                    class="form-control nota-input" 
                                                    value="<?php echo htmlspecialchars($nota_actual); ?>"
                                                    min="0" max="20" step="0.01"
-                                                   placeholder="—">
+                                                   placeholder="—"
+                                                   <?php echo $lapso_cerrado ? 'disabled' : ''; ?>>
                                         </td>
                                     </tr>
                                     <?php endforeach; ?>
                                 </tbody>
                             </table>
-                        </div>
-                        <div style="margin-top: 15px; text-align: right;">
-                            <small class="text-muted">
-                                <i class="fas fa-info-circle"></i> Deja en blanco si el estudiante aún no tiene nota.
-                            </small>
                         </div>
                     </div>
                 </div>

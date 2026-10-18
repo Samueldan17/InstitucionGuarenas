@@ -1,5 +1,5 @@
 <?php
-// config.php - Configuración y funciones del sistema (VERSIÓN 3.3 - SIGEB-G)
+// config.php - Configuración y funciones del sistema (VERSIÓN 3.4 - SIGEB-G)
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
@@ -14,10 +14,10 @@ define('DB_PASS', '');
 define('DB_CHARSET', 'utf8mb4');
 
 // =========================================================
-// 2. CONFIGURACIÓN DE LA APLICACIÓN (URL DINÁMICA)
+// 2. CONFIGURACIÓN DE LA APLICACIÓN
 // =========================================================
 define('APP_NAME', 'U.E.N. Guarenas');
-define('APP_VERSION', '3.3');
+define('APP_VERSION', '3.4');
 
 $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
 $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
@@ -44,8 +44,8 @@ define('APP_LOGO_FALLBACK', $logo_fallback_svg);
 // 3. SEGURIDAD
 // =========================================================
 define('MAX_LOGIN_ATTEMPTS', 5);
-define('LOGIN_BLOCK_TIME', 900); // 15 minutos
-define('SESSION_TIMEOUT', 3600); // 1 hora
+define('LOGIN_BLOCK_TIME', 900);
+define('SESSION_TIMEOUT', 3600);
 
 // =========================================================
 // 4. CONEXIÓN A LA BASE DE DATOS (PDO)
@@ -98,15 +98,6 @@ function requireAuth() {
     $_SESSION['last_activity'] = time();
 }
 
-function requireRole($roles = []) {
-    requireAuth();
-    if (!in_array($_SESSION['usuario_rol'], $roles)) {
-        http_response_code(403);
-        echo "Acceso denegado. No tienes permisos para esta acción.";
-        exit;
-    }
-}
-
 // =========================================================
 // 7. CSRF (Tokens)
 // =========================================================
@@ -125,34 +116,24 @@ function validateCSRFToken($token) {
 // 8. SANITIZACIÓN Y RESPUESTAS
 // =========================================================
 function sanitize($data) {
-    if (is_array($data)) {
-        return array_map('sanitize', $data);
-    }
+    if (is_array($data)) return array_map('sanitize', $data);
     return htmlspecialchars(trim($data), ENT_QUOTES, 'UTF-8');
 }
 
 function jsonResponse($success, $message = '', $data = [], $statusCode = 200, $exit = true) {
     http_response_code($statusCode);
     header('Content-Type: application/json');
-    echo json_encode([
-        'success' => $success,
-        'message' => $message,
-        'data' => $data
-    ]);
+    echo json_encode(['success' => $success, 'message' => $message, 'data' => $data]);
     if ($exit) exit;
 }
 
 // =========================================================
-// 9. VALIDACIONES VENEZOLANAS (MEJORADAS)
+// 9. VALIDACIONES VENEZOLANAS
 // =========================================================
 function validarCedulaVenezolana($cedula) {
     $cedula = strtoupper(trim($cedula));
-    if (!preg_match('/^[VE]-/', $cedula)) {
-        $cedula = 'V-' . $cedula;
-    }
-    if (!preg_match('/^[VE]-\d{6,9}$/', $cedula)) {
-        return "La cédula debe tener formato V-12345678 o 12345678";
-    }
+    if (!preg_match('/^[VE]-/', $cedula)) $cedula = 'V-' . $cedula;
+    if (!preg_match('/^[VE]-\d{6,9}$/', $cedula)) return "La cédula debe tener formato V-12345678 o 12345678";
     return true;
 }
 
@@ -166,16 +147,9 @@ function validarTelefonoVenezolano($telefono) {
     return preg_match('/^0(412|414|416|424|426|428)[-.]?\d{7}$/', $telefono) === 1;
 }
 
-function validarRangoNota($nota) {
-    $nota = floatval($nota);
-    return ($nota >= 0 && $nota <= 20);
-}
-
 function formatearCedulaParaBD($cedula) {
     $cedula = strtoupper(trim($cedula));
-    if (!preg_match('/^[VE]-/', $cedula)) {
-        $cedula = 'V-' . $cedula;
-    }
+    if (!preg_match('/^[VE]-/', $cedula)) $cedula = 'V-' . $cedula;
     return preg_replace('/[^VE0-9-]/', '', $cedula);
 }
 
@@ -236,7 +210,6 @@ function getSidebar($currentPage = '') {
                 <a href="logout.php" class="nav-link"><i class="fas fa-sign-out-alt"></i><span>Cerrar Sesión</span></a>
             </li>';
     } else {
-        // MENÚ PARA ADMIN, DOCENTE Y SECRETARIO
         $sidebar .= '
             <li class="nav-item ' . ($currentPage == 'dashboard' ? 'active' : '') . '">
                 <a href="dashboard.php" class="nav-link"><i class="fas fa-tachometer-alt"></i><span>Dashboard</span></a>
@@ -247,11 +220,11 @@ function getSidebar($currentPage = '') {
             <li class="nav-item ' . ($currentPage == 'notas' ? 'active' : '') . '">
                 <a href="asignar_notas.php" class="nav-link"><i class="fas fa-edit"></i><span>Asignar Notas</span></a>
             </li>
+            <li class="nav-item ' . ($currentPage == 'grados' ? 'active' : '') . '">
+                <a href="grados.php" class="nav-link"><i class="fas fa-layer-group"></i><span>Grados</span></a>
+            </li>
             <li class="nav-item ' . ($currentPage == 'materias' ? 'active' : '') . '">
                 <a href="materias.php" class="nav-link"><i class="fas fa-book"></i><span>Materias</span></a>
-            </li>
-                <li class="nav-item ' . ($currentPage == 'grados' ? 'active' : '') . '">
-                <a href="grados.php" class="nav-link"><i class="fas fa-layer-group"></i><span>Grados</span></a>
             </li>
             <li class="nav-item ' . ($currentPage == 'secciones' ? 'active' : '') . '">
                 <a href="secciones.php" class="nav-link"><i class="fas fa-users"></i><span>Secciones</span></a>
@@ -266,7 +239,6 @@ function getSidebar($currentPage = '') {
                 <a href="reportes.php" class="nav-link"><i class="fas fa-chart-bar"></i><span>Reportes</span></a>
             </li>';
         
-        // MENÚ EXCLUSIVO DEL ADMIN
         if ($rol === 'admin') {
             $sidebar .= '
                 <li class="nav-item ' . ($currentPage == 'usuarios' ? 'active' : '') . '">
@@ -305,3 +277,9 @@ function getSidebar($currentPage = '') {
     
     return $sidebar;
 }
+
+// =========================================================
+// 12. CARGAR FUNCIONES DE NEGOCIO
+// =========================================================
+require_once __DIR__ . '/functions.php';
+?>
