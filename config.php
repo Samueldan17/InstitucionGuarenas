@@ -250,6 +250,9 @@ function getSidebar($currentPage = '') {
             <li class="nav-item ' . ($currentPage == 'materias' ? 'active' : '') . '">
                 <a href="materias.php" class="nav-link"><i class="fas fa-book"></i><span>Materias</span></a>
             </li>
+                <li class="nav-item ' . ($currentPage == 'grados' ? 'active' : '') . '">
+                <a href="grados.php" class="nav-link"><i class="fas fa-layer-group"></i><span>Grados</span></a>
+            </li>
             <li class="nav-item ' . ($currentPage == 'secciones' ? 'active' : '') . '">
                 <a href="secciones.php" class="nav-link"><i class="fas fa-users"></i><span>Secciones</span></a>
             </li>
