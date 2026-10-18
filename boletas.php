@@ -1,5 +1,5 @@
 <?php
-// boletas.php - Generación de boletines (VERSIÓN 3.6 - Exportar PDF)
+// boletas.php - Generación de boletines (VERSIÓN 3.7 - Vista con logo, PDF sin logo)
 require_once 'config.php';
 require_once 'functions.php';
 requireAuth();
@@ -10,7 +10,6 @@ $lapso = (int)($_POST['lapso'] ?? $_GET['lapso'] ?? 1);
 $anio_escolar = (int)($_POST['anio_escolar'] ?? $_GET['anio_escolar'] ?? date('Y'));
 $accion = $_GET['accion'] ?? '';
 
-// Verificar permisos si es estudiante
 if ($_SESSION['usuario_rol'] === 'estudiante') {
     $estudiante_actual = getEstudiantePorUsuario($_SESSION['usuario_id']);
     if (!$estudiante_actual || $estudiante_actual['id'] != $estudiante_id) {
@@ -45,18 +44,23 @@ if ($estudiante_id > 0) {
 if ($accion === 'pdf' && $boleta_data) {
     require_once __DIR__ . '/vendor/autoload.php';
     
+    define('IS_PDF_GENERATION', true); // Indicamos que es un PDF
+
     ob_start();
     include __DIR__ . '/templates/boleta_template.php';
     $html = ob_get_clean();
 
-    $dompdf = new \Dompdf\Dompdf();
+    $options = new \Dompdf\Options();
+    $options->set('isRemoteEnabled', true);
+    $options->set('isHtml5ParserEnabled', true);
+    $dompdf = new \Dompdf\Dompdf($options);
+    
     $dompdf->loadHtml($html);
     $dompdf->setPaper('letter', 'portrait');
     $dompdf->render();
     
-    // Nombre del archivo
     $nombre_archivo = "Boletin_" . $boleta_data['info_estudiante']['cedula'] . "_Lapso" . $lapso . ".pdf";
-    $dompdf->stream($nombre_archivo, array("Attachment" => false)); // false = abrir en navegador, true = descargar directo
+    $dompdf->stream($nombre_archivo, array("Attachment" => false));
     exit;
 }
 ?>
@@ -133,14 +137,16 @@ if ($accion === 'pdf' && $boleta_data) {
                     <button onclick="window.print()" class="btn btn-secondary">
                         <i class="fas fa-print"></i> Imprimir
                     </button>
-                    <!-- BOTÓN MÁGICO PARA PDF -->
                     <a href="?accion=pdf&estudiante_id=<?php echo $estudiante_id; ?>&lapso=<?php echo $lapso; ?>&anio_escolar=<?php echo $anio_escolar; ?>" target="_blank" class="btn btn-success">
                         <i class="fas fa-file-pdf"></i> Descargar PDF
                     </a>
                 </div>
 
                 <div class="boleta-container" id="boleta">
-                    <?php include __DIR__ . '/templates/boleta_template.php'; ?>
+                    <?php 
+                    define('IS_PDF_GENERATION', false); // Indicamos que es vista en pantalla
+                    include __DIR__ . '/templates/boleta_template.php'; 
+                    ?>
                 </div>
             <?php endif; ?>
 

@@ -35,8 +35,11 @@ $logo_fallback_svg = 'data:image/svg+xml;charset=utf-8,' . rawurlencode('
 $logo_path = __DIR__ . '/assets/img/logo.png';
 if (file_exists($logo_path) && @getimagesize($logo_path) !== false) {
     define('APP_LOGO', APP_URL . '/assets/img/logo.png');
+    // Nueva constante: Logo convertido a Base64 para PDFs
+    define('APP_LOGO_BASE64', 'data:image/png;base64,' . base64_encode(file_get_contents($logo_path)));
 } else {
     define('APP_LOGO', $logo_fallback_svg);
+    define('APP_LOGO_BASE64', $logo_fallback_svg);
 }
 define('APP_LOGO_FALLBACK', $logo_fallback_svg);
 

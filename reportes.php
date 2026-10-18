@@ -1,5 +1,5 @@
 <?php
-// reportes.php - Sistema de reportes completo (VERSIÓN 3.7 - PDF Acta Corregido)
+// reportes.php - Sistema de reportes completo (VERSIÓN 4.0 - PDF sin logo por fallo GD)
 require_once 'config.php';
 require_once 'functions.php';
 requireAuth();
@@ -138,7 +138,7 @@ if ($tipo_reporte === 'acta' && $seccion_id) {
 }
 
 // =========================================================
-// EXPORTAR ACTA A PDF CON DOMPDF (Ahora sí, con los datos cargados)
+// EXPORTAR ACTA A PDF CON DOMPDF (Sin logo por fallo de GD)
 // =========================================================
 if ($accion === 'pdf' && $tipo_reporte === 'acta' && $seccion_id) {
     require_once __DIR__ . '/vendor/autoload.php';
@@ -159,11 +159,18 @@ if ($accion === 'pdf' && $tipo_reporte === 'acta' && $seccion_id) {
     </style>
 
     <div class="acta-header">
-        <h2>REPÚBLICA BOLIVARIANA DE VENEZUELA</h2>
-        <p>MINISTERIO DEL PODER POPULAR PARA LA EDUCACIÓN</p>
-        <p><strong><?php echo APP_NAME; ?></strong></p>
-        <p>ACTA DE CALIFICACIONES - <?php echo strtoupper($lapso); ?>er LAPSO</p>
-        <p>Año Escolar: <?php echo $anio_escolar_texto; ?></p>
+        <table style="width: 100%; border: none; margin-bottom: 10px;">
+            <tr>
+                <!-- LOGO DESHABILITADO POR FALLO DE EXTENSIÓN GD -->
+                <td style="text-align: center; border: none;" colspan="3">
+                    <h2 style="margin: 0; font-size: 14px;">REPÚBLICA BOLIVARIANA DE VENEZUELA</h2>
+                    <p style="margin: 2px 0; font-size: 11px;">MINISTERIO DEL PODER POPULAR PARA LA EDUCACIÓN</p>
+                    <p style="margin: 2px 0; font-size: 11px;"><strong><?php echo APP_NAME; ?></strong></p>
+                    <p style="margin: 2px 0; font-size: 11px;">ACTA DE CALIFICACIONES - <?php echo strtoupper($lapso); ?>er LAPSO</p>
+                    <p style="margin: 2px 0; font-size: 11px;">Año Escolar: <?php echo $anio_escolar_texto; ?></p>
+                </td>
+            </tr>
+        </table>
     </div>
 
     <table class="acta-table">
@@ -200,14 +207,22 @@ if ($accion === 'pdf' && $tipo_reporte === 'acta' && $seccion_id) {
     </div>
     <?php
     $html = ob_get_clean();
-
-    $dompdf = new \Dompdf\Dompdf();
-    $dompdf->loadHtml($html);
-    $dompdf->setPaper('letter', 'landscape'); // Horizontal para que quepan las materias
-    $dompdf->render();
     
-    $dompdf->stream("Acta_" . $lapso . "Lapso_" . date('Ymd') . ".pdf", array("Attachment" => false));
-    exit;
+    try {
+        $options = new \Dompdf\Options();
+        $options->set('isRemoteEnabled', true);
+        $options->set('isHtml5ParserEnabled', true);
+        $dompdf = new \Dompdf\Dompdf($options);
+
+        $dompdf->loadHtml($html);
+        $dompdf->setPaper('letter', 'landscape');
+        $dompdf->render();
+        
+        $dompdf->stream("Acta_" . $lapso . "Lapso_" . date('Ymd') . ".pdf", array("Attachment" => false));
+        exit;
+    } catch (Exception $e) {
+        die("<div style='padding: 20px; background: #f8d7da; color: #721c24;'><h3>Error al generar el PDF:</h3><p>" . $e->getMessage() . "</p></div>");
+    }
 }
 ?>
 <!DOCTYPE html>
@@ -388,7 +403,6 @@ if ($accion === 'pdf' && $tipo_reporte === 'acta' && $seccion_id) {
                             <?php endif; ?>
                         </form>
                         
-                        <!-- BOTÓN PDF CORREGIDO: Ahora sí está en la pestaña del Acta -->
                         <?php if ($seccion_id && !empty($acta_estudiantes)): ?>
                         <div style="text-align: right; margin-top: 15px;">
                             <a href="?tipo_reporte=acta&grado_id=<?php echo $grado_id; ?>&seccion_id=<?php echo $seccion_id; ?>&lapso=<?php echo $lapso; ?>&accion=pdf" target="_blank" class="btn btn-success">
@@ -402,13 +416,24 @@ if ($accion === 'pdf' && $tipo_reporte === 'acta' && $seccion_id) {
 
                 <?php if ($seccion_id && !empty($acta_estudiantes)): ?>
                     <div class="acta-container">
-                        <!-- Encabezado Oficial -->
+                        <!-- Encabezado Oficial (Vista en Pantalla) -->
                         <div class="acta-header">
-                            <h2>REPÚBLICA BOLIVARIANA DE VENEZUELA</h2>
-                            <p>MINISTERIO DEL PODER POPULAR PARA LA EDUCACIÓN</p>
-                            <p><strong><?php echo APP_NAME; ?></strong></p>
-                            <p>ACTA DE CALIFICACIONES - <?php echo strtoupper($lapso); ?>er LAPSO</p>
-                            <p>Año Escolar: <?php echo $anio_escolar_texto; ?></p>
+                            <table style="width: 100%; border: none; margin-bottom: 10px;">
+                                <tr>
+                                    <td style="width: 80px; text-align: left; border: none;">
+                                        <!-- Logo en pantalla funciona porque el navegador lo procesa -->
+                                        <img src="<?php echo APP_LOGO; ?>" alt="Logo" style="width: 70px; height: auto;">
+                                    </td>
+                                    <td style="text-align: center; border: none;">
+                                        <h2 style="margin: 0; font-size: 16px;">REPÚBLICA BOLIVARIANA DE VENEZUELA</h2>
+                                        <p style="margin: 5px 0; font-size: 12px;">MINISTERIO DEL PODER POPULAR PARA LA EDUCACIÓN</p>
+                                        <p style="margin: 5px 0; font-size: 12px;"><strong><?php echo APP_NAME; ?></strong></p>
+                                        <p style="margin: 5px 0; font-size: 12px;">ACTA DE CALIFICACIONES - <?php echo strtoupper($lapso); ?>er LAPSO</p>
+                                        <p style="margin: 5px 0; font-size: 12px;">Año Escolar: <?php echo $anio_escolar_texto; ?></p>
+                                    </td>
+                                    <td style="width: 80px; text-align: right; border: none;"></td>
+                                </tr>
+                            </table>
                         </div>
 
                         <!-- Tabla Matriz -->
