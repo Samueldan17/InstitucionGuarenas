@@ -2,6 +2,7 @@
 // configuracion.php - Configuración del sistema (VERSIÓN 3.7 - Control de Lapsos)
 require_once 'config.php';
 requireAuth();
+if ($_SESSION['usuario_rol'] === 'docente') { header('Location: dashboard.php'); exit; }
 if ($_SESSION['usuario_rol'] !== 'admin') { header('Location: dashboard.php'); exit; }
 $db = getDBConnection();
 $message = $_GET['message'] ?? '';

@@ -3,6 +3,7 @@
 require_once 'config.php';
 require_once 'functions.php';
 requireAuth();
+if ($_SESSION['usuario_rol'] === 'docente') { header('Location: dashboard.php'); exit; }
 
 $db = getDBConnection();
 $action = $_GET['action'] ?? 'list';

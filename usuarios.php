@@ -1,5 +1,5 @@
 <?php
-// usuarios.php - Gestión de usuarios (VERSIÓN 3.8 - Teléfono estilizado)
+// usuarios.php - Gestión de usuarios (VERSIÓN 3.9 - Ojito perfecto integrado)
 require_once 'config.php';
 require_once 'functions.php';
 requireAuth();
@@ -19,7 +19,6 @@ if (($_POST['action'] ?? '') == 'crear_usuario') {
             $apellidos = formatearNombrePropio($_POST['apellidos']);
             $email = sanitize($_POST['email']);
             
-            // Armar el teléfono
             $tel_prefijo = $_POST['telefono_prefijo'] ?? '';
             $tel_numero = trim($_POST['telefono_numero'] ?? '');
             $telefono = (!empty($tel_prefijo) && !empty($tel_numero)) ? $tel_prefijo . '-' . $tel_numero : '';
@@ -32,7 +31,7 @@ if (($_POST['action'] ?? '') == 'crear_usuario') {
             if ($validacion !== true) throw new Exception(is_string($validacion) ? $validacion : "Cédula inválida.");
             if (empty($nombres) || empty($apellidos)) throw new Exception("Nombres y apellidos obligatorios.");
             if (!validarEmail($email)) throw new Exception("Email inválido.");
-            if ($telefono && !validarTelefonoVenezolano($telefono)) throw new Exception("Teléfono inválido. Debe tener 7 dígitos después del prefijo.");
+            if ($telefono && !validarTelefonoVenezolano($telefono)) throw new Exception("Teléfono inválido.");
             if (($pass_valid = validarPasswordSegura($password)) !== true) throw new Exception($pass_valid);
             if ($password !== $confirm) throw new Exception("Las contraseñas no coinciden.");
             if (!in_array($rol, ['admin','docente','secretario'])) throw new Exception("Rol no válido.");
@@ -77,27 +76,14 @@ $usuarios = $db->query("SELECT * FROM usuarios WHERE activo = 1 ORDER BY apellid
     <link rel="stylesheet" href="<?php echo APP_URL; ?>/assets/css/styles.css">
     <link rel="stylesheet" href="<?php echo APP_URL; ?>/assets/fontawesome/css/all.min.css">
     <style>
-            
-        /* Arreglo para que el teléfono no se desborde */
-        .phone-group {
-            display: flex;
-            gap: 8px;
-            width: 100%;
-            align-items: center;
-        }
-        .phone-group select.form-control {
-            width: 85px !important;
-            flex-shrink: 0;
-            padding: 8px 4px;
-            text-align: center;
-        }
-        .phone-group input.form-control {
-            flex: 1;
-            min-width: 0; /* Evita que el input se salga de la caja */
-            padding: 8px;
-        }
-    </style>
-       
+        .phone-group { display: flex; gap: 8px; width: 100%; align-items: center; }
+        .phone-group select.form-control { width: 85px !important; flex-shrink: 0; padding: 8px 4px; text-align: center; }
+        .phone-group input.form-control { flex: 1; min-width: 0; padding: 8px; }
+        
+        /* CSS PERFECTO PARA EL OJITO */
+        .password-wrapper { position: relative; width: 100%; }
+        .password-wrapper input { width: 100%; padding-right: 40px; }
+        .toggle-password { position: absolute; right: 15px; top: 50%; transform: translateY(-50%); cursor: pointer; color: #586069; z-index: 10; }
     </style>
 </head>
 <body>
@@ -183,26 +169,21 @@ $usuarios = $db->query("SELECT * FROM usuarios WHERE activo = 1 ORDER BY apellid
                         <div class="form-group">
                             <label>Cédula</label>
                             <input type="text" name="cedula" class="form-control cedula" required placeholder="Ej: 12345678">
-                            <small class="form-text">Escribe solo los números.</small>
                         </div>
                         <div class="form-group"><label>Nombres</label><input type="text" name="nombres" class="form-control" required></div>
                         <div class="form-group"><label>Apellidos</label><input type="text" name="apellidos" class="form-control" required></div>
                         <div class="form-group"><label>Email</label><input type="email" name="email" class="form-control" required></div>
+                        
                         <div class="form-group">
                             <label>Teléfono</label>
                             <div class="phone-group">
                                 <select name="telefono_prefijo" class="form-control">
-                                    <option value="">-</option>
-                                    <option value="0412">0412</option>
-                                    <option value="0414">0414</option>
-                                    <option value="0416">0416</option>
-                                    <option value="0424">0424</option>
-                                    <option value="0426">0426</option>
-                                    <option value="0428">0428</option>
+                                    <option value="">-</option><option value="0412">0412</option><option value="0414">0414</option><option value="0416">0416</option><option value="0424">0424</option><option value="0426">0426</option><option value="0428">0428</option>
                                 </select>
-                                <input type="text" name="telefono_numero" class="form-control" placeholder="1234567" maxlength="7" pattern="\d{7}" title="Debe tener exactamente 7 números">
+                                <input type="text" name="telefono_numero" class="form-control" placeholder="1234567" maxlength="7" pattern="\d{7}">
                             </div>
                         </div>
+                        
                         <div class="form-group">
                             <label>Rol</label>
                             <select name="rol" class="form-control" required>
@@ -211,12 +192,25 @@ $usuarios = $db->query("SELECT * FROM usuarios WHERE activo = 1 ORDER BY apellid
                                 <option value="admin">Administrador</option>
                             </select>
                         </div>
+
+                        <!-- CONTRASEÑA CON OJITO -->
                         <div class="form-group">
                             <label>Contraseña Segura</label>
-                            <input type="password" name="password" class="form-control" minlength="8" required placeholder="Mín. 8 caracteres">
+                            <div class="password-wrapper">
+                                <input type="password" name="password" id="pass1" class="form-control" minlength="8" required placeholder="Mín. 8 caracteres">
+                                <i class="fas fa-eye toggle-password" onclick="togglePassword('pass1', this)"></i>
+                            </div>
                             <small class="form-text">Mayúscula, minúscula, número y símbolo.</small>
                         </div>
-                        <div class="form-group"><label>Confirmar</label><input type="password" name="confirm_password" class="form-control" minlength="8" required></div>
+                        
+                        <!-- CONFIRMAR CONTRASEÑA CON OJITO -->
+                        <div class="form-group">
+                            <label>Confirmar</label>
+                            <div class="password-wrapper">
+                                <input type="password" name="confirm_password" id="pass2" class="form-control" minlength="8" required>
+                                <i class="fas fa-eye toggle-password" onclick="togglePassword('pass2', this)"></i>
+                            </div>
+                        </div>
                     </div>
                     <div class="form-actions">
                         <button type="submit" class="btn btn-primary">Guardar Usuario</button>
@@ -234,6 +228,19 @@ $usuarios = $db->query("SELECT * FROM usuarios WHERE activo = 1 ORDER BY apellid
 function abrirModalNuevoUsuario() { document.getElementById('modalNuevoUsuario').style.display = 'block'; }
 function cerrarModalNuevoUsuario() { document.getElementById('modalNuevoUsuario').style.display = 'none'; }
 window.onclick = function(e) { if(e.target == document.getElementById('modalNuevoUsuario')) cerrarModalNuevoUsuario(); }
+
+function togglePassword(inputId, icon) {
+    const input = document.getElementById(inputId);
+    if (input.type === "password") {
+        input.type = "text";
+        icon.classList.remove("fa-eye");
+        icon.classList.add("fa-eye-slash"); 
+    } else {
+        input.type = "password";
+        icon.classList.remove("fa-eye-slash");
+        icon.classList.add("fa-eye");
+    }
+}
 </script>
 </body>
 </html>

@@ -3,8 +3,11 @@
 require_once 'config.php';
 require_once 'functions.php';
 requireAuth();
+if ($_SESSION['usuario_rol'] === 'docente') { header('Location: dashboard.php'); exit; }
 if ($_SESSION['usuario_rol'] !== 'admin') { header('Location: dashboard.php'); exit; }
+
 $db = getDBConnection();
+
 
 // Año escolar activo
 $anio_escolar_texto = getConfig($db, 'anio_escolar_activo', date('Y') . '-' . (date('Y') + 1));

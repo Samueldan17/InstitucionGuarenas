@@ -1,6 +1,7 @@
 <?php
-// perfil.php - Mi Perfil (con CSRF) - VERSIÓN 3.2
+// perfil.php - Mi Perfil (VERSIÓN 3.9 - CSS del ojito corregido)
 require_once 'config.php';
+require_once 'functions.php';
 requireAuth();
 $db = getDBConnection();
 $user_id = $_SESSION['usuario_id'];
@@ -14,7 +15,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $email = sanitize($_POST['email']);
             $telefono = sanitize($_POST['telefono']);
             if (!validarEmail($email)) $error = "Email inválido.";
-            elseif ($telefono && !validarTelefonoVenezolano($telefono)) $error = "Teléfono inválido. Use el formato 0412-1234567";
+            elseif ($telefono && !validarTelefonoVenezolano($telefono)) $error = "Teléfono inválido.";
             else {
                 $stmt = $db->prepare("UPDATE usuarios SET email=?, telefono=? WHERE id=?");
                 $stmt->execute([$email, $telefono, $user_id]);
@@ -28,10 +29,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt = $db->prepare("SELECT password FROM usuarios WHERE id=?");
             $stmt->execute([$user_id]);
             $user = $stmt->fetch();
-            if (!password_verify($pass_actual, $user['password'])) $error = "Contraseña actual incorrecta.";
-            elseif ($pass_nueva !== $pass_confirm) $error = "Las nuevas contraseñas no coinciden.";
-            elseif (strlen($pass_nueva) < 6) $error = "La nueva contraseña debe tener al menos 6 caracteres.";
-            else {
+            
+            if (!password_verify($pass_actual, $user['password'])) {
+                $error = "Contraseña actual incorrecta.";
+            } elseif (($pass_valid = validarPasswordSegura($pass_nueva)) !== true) {
+                $error = is_string($pass_valid) ? $pass_valid : "Contraseña inválida.";
+            } elseif ($pass_nueva !== $pass_confirm) {
+                $error = "Las nuevas contraseñas no coinciden.";
+            } else {
                 $hash = password_hash($pass_nueva, PASSWORD_DEFAULT);
                 $stmt = $db->prepare("UPDATE usuarios SET password=? WHERE id=?");
                 $stmt->execute([$hash, $user_id]);
@@ -42,16 +47,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// Consulta corregida: obtiene los datos del usuario actual
 $stmt = $db->prepare("SELECT nombres, apellidos, email, telefono, rol, cedula FROM usuarios WHERE id=?");
 $stmt->execute([$user_id]);
 $user = $stmt->fetch();
-
-// Si por alguna razón no encuentra al usuario, redirigir
-if (!$user) {
-    header('Location: logout.php');
-    exit;
-}
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -60,6 +58,12 @@ if (!$user) {
     <title>Mi Perfil - <?php echo APP_NAME; ?></title>
     <link rel="stylesheet" href="<?php echo APP_URL; ?>/assets/css/styles.css">
     <link rel="stylesheet" href="<?php echo APP_URL; ?>/assets/fontawesome/css/all.min.css">
+    <style>
+        /* CSS PERFECTO PARA EL OJITO EN EL PERFIL */
+        .password-wrapper { position: relative; width: 100%; }
+        .password-wrapper input { width: 100%; padding-right: 40px; }
+        .toggle-password { position: absolute; right: 15px; top: 50%; transform: translateY(-50%); cursor: pointer; color: #586069; z-index: 10; }
+    </style>
 </head>
 <body>
 <div class="dashboard-container">
@@ -116,17 +120,26 @@ if (!$user) {
                         
                         <div class="form-group">
                             <label>Contraseña actual</label>
-                            <input type="password" name="pass_actual" required class="form-control">
+                            <div class="password-wrapper">
+                                <input type="password" name="pass_actual" id="pass0" required class="form-control">
+                                <i class="fas fa-eye toggle-password" onclick="togglePassword('pass0', this)"></i>
+                            </div>
                         </div>
                         
                         <div class="form-group">
                             <label>Nueva contraseña</label>
-                            <input type="password" name="pass_nueva" required minlength="6" class="form-control" placeholder="Mínimo 6 caracteres">
+                            <div class="password-wrapper">
+                                <input type="password" name="pass_nueva" id="pass1" required minlength="8" class="form-control" placeholder="Mín. 8 caracteres">
+                                <i class="fas fa-eye toggle-password" onclick="togglePassword('pass1', this)"></i>
+                            </div>
                         </div>
                         
                         <div class="form-group">
                             <label>Confirmar nueva contraseña</label>
-                            <input type="password" name="pass_confirm" required class="form-control">
+                            <div class="password-wrapper">
+                                <input type="password" name="pass_confirm" id="pass2" required minlength="8" class="form-control">
+                                <i class="fas fa-eye toggle-password" onclick="togglePassword('pass2', this)"></i>
+                            </div>
                         </div>
                         
                         <button type="submit" name="cambiar_password" class="btn btn-warning">
@@ -140,5 +153,19 @@ if (!$user) {
 </div>
 <script>var APP_URL = "<?php echo APP_URL; ?>";</script>
 <script src="<?php echo APP_URL; ?>/assets/js/usabilidad.js"></script>
+<script>
+    function togglePassword(inputId, icon) {
+        const input = document.getElementById(inputId);
+        if (input.type === "password") {
+            input.type = "text";
+            icon.classList.remove("fa-eye");
+            icon.classList.add("fa-eye-slash"); 
+        } else {
+            input.type = "password";
+            icon.classList.remove("fa-eye-slash");
+            icon.classList.add("fa-eye");
+        }
+    }
+</script>
 </body>
 </html>

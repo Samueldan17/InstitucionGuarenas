@@ -1,5 +1,5 @@
 <?php
-// config.php - Configuración y funciones del sistema (VERSIÓN 3.4 - SIGEB-G)
+// config.php - Configuración y funciones del sistema (VERSIÓN 3.5)
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
@@ -17,7 +17,7 @@ define('DB_CHARSET', 'utf8mb4');
 // 2. CONFIGURACIÓN DE LA APLICACIÓN
 // =========================================================
 define('APP_NAME', 'U.E.N. Guarenas');
-define('APP_VERSION', '3.4');
+define('APP_VERSION', '3.5');
 
 $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
 $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
@@ -35,7 +35,6 @@ $logo_fallback_svg = 'data:image/svg+xml;charset=utf-8,' . rawurlencode('
 $logo_path = __DIR__ . '/assets/img/logo.png';
 if (file_exists($logo_path) && @getimagesize($logo_path) !== false) {
     define('APP_LOGO', APP_URL . '/assets/img/logo.png');
-    // Nueva constante: Logo convertido a Base64 para PDFs
     define('APP_LOGO_BASE64', 'data:image/png;base64,' . base64_encode(file_get_contents($logo_path)));
 } else {
     define('APP_LOGO', $logo_fallback_svg);
@@ -179,7 +178,7 @@ function registrarLog($accion, $tabla = null, $registro_id = null, $detalles = n
 }
 
 // =========================================================
-// 11. SIDEBAR
+// 11. SIDEBAR CON ROLES BLINDADOS
 // =========================================================
 function getSidebar($currentPage = '') {
     $rol = $_SESSION['usuario_rol'] ?? 'guest';
@@ -213,15 +212,29 @@ function getSidebar($currentPage = '') {
                 <a href="logout.php" class="nav-link"><i class="fas fa-sign-out-alt"></i><span>Cerrar Sesión</span></a>
             </li>';
     } else {
+        // MENÚ BASE PARA DOCENTES, SECRETARIOS Y ADMIN
         $sidebar .= '
             <li class="nav-item ' . ($currentPage == 'dashboard' ? 'active' : '') . '">
                 <a href="dashboard.php" class="nav-link"><i class="fas fa-tachometer-alt"></i><span>Dashboard</span></a>
             </li>
-            <li class="nav-item ' . ($currentPage == 'estudiantes' ? 'active' : '') . '">
-                <a href="estudiantes.php" class="nav-link"><i class="fas fa-user-graduate"></i><span>Estudiantes</span></a>
-            </li>
             <li class="nav-item ' . ($currentPage == 'notas' ? 'active' : '') . '">
                 <a href="asignar_notas.php" class="nav-link"><i class="fas fa-edit"></i><span>Asignar Notas</span></a>
+            </li>
+            <li class="nav-item ' . ($currentPage == 'boletas' ? 'active' : '') . '">
+                <a href="boletas.php" class="nav-link"><i class="fas fa-file-alt"></i><span>Boletas</span></a>
+            </li>
+            <li class="nav-item ' . ($currentPage == 'reportes' ? 'active' : '') . '">
+                <a href="reportes.php" class="nav-link"><i class="fas fa-chart-bar"></i><span>Reportes</span></a>
+            </li>
+            <li class="nav-item ' . ($currentPage == 'alertas' ? 'active' : '') . '">
+                <a href="alertas.php" class="nav-link"><i class="fas fa-exclamation-triangle"></i><span>Alertas</span></a>
+            </li>';
+
+        // OPCIONES EXCLUSIVAS PARA ADMIN Y SECRETARIO (No para docentes)
+        if ($rol === 'admin' || $rol === 'secretario') {
+            $sidebar .= '
+            <li class="nav-item ' . ($currentPage == 'estudiantes' ? 'active' : '') . '">
+                <a href="estudiantes.php" class="nav-link"><i class="fas fa-user-graduate"></i><span>Estudiantes</span></a>
             </li>
             <li class="nav-item ' . ($currentPage == 'grados' ? 'active' : '') . '">
                 <a href="grados.php" class="nav-link"><i class="fas fa-layer-group"></i><span>Grados</span></a>
@@ -234,17 +247,10 @@ function getSidebar($currentPage = '') {
             </li>
             <li class="nav-item ' . ($currentPage == 'carga_academica' ? 'active' : '') . '">
                 <a href="carga_academica.php" class="nav-link"><i class="fas fa-chalkboard-teacher"></i><span>Carga Académica</span></a>
-            </li>
-            <li class="nav-item ' . ($currentPage == 'boletas' ? 'active' : '') . '">
-                <a href="boletas.php" class="nav-link"><i class="fas fa-file-alt"></i><span>Boletas</span></a>
-            </li>
-            <li class="nav-item ' . ($currentPage == 'reportes' ? 'active' : '') . '">
-                <a href="reportes.php" class="nav-link"><i class="fas fa-chart-bar"></i><span>Reportes</span></a>
-            </li> 
-                <li class="nav-item ' . ($currentPage == 'alertas' ? 'active' : '') . '">
-                <a href="alertas.php" class="nav-link"><i class="fas fa-exclamation-triangle"></i><span>Alertas</span></a>
-            </li>'
-            ;
+            </li>';
+        }
+
+        // OPCIONES EXCLUSIVAS PARA EL ADMIN (Usuarios, Auditoría, Configuración)
         if ($rol === 'admin') {
             $sidebar .= '
                 <li class="nav-item ' . ($currentPage == 'usuarios' ? 'active' : '') . '">
@@ -258,6 +264,7 @@ function getSidebar($currentPage = '') {
                 </li>';
         }
         
+        // PERFIL Y SALIR (PARA TODOS)
         $sidebar .= '
                 <li class="nav-item ' . ($currentPage == 'perfil' ? 'active' : '') . '">
                     <a href="perfil.php" class="nav-link"><i class="fas fa-user-circle"></i><span>Mi Perfil</span></a>

@@ -1,5 +1,5 @@
 <?php
-// login.php - Sistema de autenticación (VERSIÓN 3.6 - Ciberseguridad)
+// login.php - Sistema de autenticación (VERSIÓN 3.9 - Con Ojito integrado)
 require_once 'config.php';
 require_once 'functions.php';
 
@@ -183,6 +183,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['recovery'])) {
         .valores h3 { color:#9b59b6; border-color:#9b59b6; }
         .comunidad h3 { color:#f39c12; border-color:#f39c12; }
         .valores-box { background:#f8f9fa; padding:15px; border-radius:8px; text-align:center; }
+        
+        /* CSS PERFECTO PARA EL OJITO */
+        .password-wrapper { position: relative; width: 100%; }
+        .password-wrapper input { width: 100%; padding-right: 40px; }
+        .toggle-password { position: absolute; right: 15px; top: 50%; transform: translateY(-50%); cursor: pointer; color: #586069; z-index: 10; }
     </style>
 </head>
 <body class="login-page">
@@ -209,10 +214,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['recovery'])) {
                     <label for="username">Usuario o Cédula</label>
                     <input type="text" id="username" name="username" required class="form-control" placeholder="Ingrese su usuario o cédula" value="<?php echo htmlspecialchars($_POST['username'] ?? ''); ?>">
                 </div>
+                
                 <div class="form-group">
                     <label for="password">Contraseña</label>
-                    <input type="password" id="password" name="password" required class="form-control" placeholder="Ingrese su contraseña">
+                    <div class="password-wrapper">
+                        <input type="password" id="password" name="password" required class="form-control" placeholder="Ingrese su contraseña">
+                        <i class="fas fa-eye toggle-password" onclick="togglePassword('password', this)"></i>
+                    </div>
                 </div>
+                
                 <button type="submit" class="btn btn-primary btn-block"><i class="fas fa-sign-in-alt"></i> Iniciar Sesión</button>
                 <div class="demo-credentials">
                     <details>
@@ -230,6 +240,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['recovery'])) {
             </div>
         </div>
         
+        <!-- FORMULARIO DE REGISTRO CON OJITOS -->
         <div id="register-form" <?php echo $show_register ? '' : 'class="hidden"'; ?>>
             <form method="POST" class="login-form">
                 <input type="hidden" name="register" value="1">
@@ -242,12 +253,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['recovery'])) {
                 <div class="form-group"><label>Usuario</label><input type="text" name="username" required class="form-control" value="<?php echo htmlspecialchars($_POST['username'] ?? ''); ?>"></div>
                 <div class="form-group"><label>Email</label><input type="email" name="email" required class="form-control" value="<?php echo htmlspecialchars($_POST['email'] ?? ''); ?>"></div>
                 <div class="form-group"><label>Teléfono (opcional)</label><input type="text" name="telefono" class="form-control telefono" value="<?php echo htmlspecialchars($_POST['telefono'] ?? ''); ?>"></div>
+                
                 <div class="form-group">
                     <label>Contraseña (Segura)</label>
-                    <input type="password" name="password" required class="form-control" placeholder="Mín. 8 caracteres, mayúscula, número y símbolo" minlength="8">
-                    <small class="form-text">Debe tener mayúscula, minúscula, número y símbolo.</small>
+                    <div class="password-wrapper">
+                        <input type="password" name="password" id="reg_pass1" required class="form-control" placeholder="Mín. 8 caracteres" minlength="8">
+                        <i class="fas fa-eye toggle-password" onclick="togglePassword('reg_pass1', this)"></i>
+                    </div>
+                    <small class="form-text">Mayúscula, minúscula, número y símbolo.</small>
                 </div>
-                <div class="form-group"><label>Confirmar Contraseña</label><input type="password" name="confirm_password" required class="form-control" minlength="8"></div>
+                
+                <div class="form-group">
+                    <label>Confirmar Contraseña</label>
+                    <div class="password-wrapper">
+                        <input type="password" name="confirm_password" id="reg_pass2" required class="form-control" minlength="8">
+                        <i class="fas fa-eye toggle-password" onclick="togglePassword('reg_pass2', this)"></i>
+                    </div>
+                </div>
+                
                 <button type="submit" class="btn btn-primary btn-block"><i class="fas fa-user-plus"></i> Registrarse</button>
                 <div class="form-switcher"><button type="button" class="switcher-btn" onclick="window.location.href='login.php'">← Volver al Login</button></div>
             </form>
@@ -283,25 +306,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['recovery'])) {
                         <p><strong>📞 Teléfono:</strong> 0212-3641463</p>
                         <p><strong>👨‍🏫 Director:</strong> Prof. Jhony Castro</p>
                     </div>
-                    <div class="modal-section comunidad">
-                        <h3>🏘️ Comunidad</h3>
-                        <p><strong>📍 Ubicación:</strong> Sector El Rincón</p>
-                    </div>
                 </div>
-                <div>
-                    <div class="modal-section subsistemas">
-                        <h3>🎓 Subsistemas</h3>
-                        <p><strong>📊 Matrícula Total:</strong> 580 estudiantes</p>
-                    </div>
-                </div>
-            </div>
-            <div class="modal-section mision-vision">
-                <h3>🎯 Misión y Visión</h3>
-                <p><strong>MISIÓN:</strong> Formar ciudadanos integrales con valores éticos, académicos y conciencia social.</p>
-            </div>
-            <div class="modal-section valores">
-                <h3>💫 Valores Institucionales</h3>
-                <div class="valores-box"><strong>Respeto • Responsabilidad • Solidaridad • Honestidad</strong></div>
             </div>
         </div>
     </div>
@@ -313,6 +318,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['recovery'])) {
                 if (event.target == modal) modal.style.display = "none";
             }
         });
+
+        function togglePassword(inputId, icon) {
+            const input = document.getElementById(inputId);
+            if (input.type === "password") {
+                input.type = "text";
+                icon.classList.remove("fa-eye");
+                icon.classList.add("fa-eye-slash"); 
+            } else {
+                input.type = "password";
+                icon.classList.remove("fa-eye-slash");
+                icon.classList.add("fa-eye");
+            }
+        }
     </script>
 </body>
 </html>
