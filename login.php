@@ -224,15 +224,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['recovery'])) {
                 </div>
                 
                 <button type="submit" class="btn btn-primary btn-block"><i class="fas fa-sign-in-alt"></i> Iniciar Sesión</button>
-                <div class="demo-credentials">
-                    <details>
-                        <summary class="text-muted small">Credenciales de demostración</summary>
-                        <div class="mt-2">
-                            <div><strong>Admin:</strong> admin / password</div>
-                            <div><strong>Docente:</strong> jcastro / password</div>
-                        </div>
-                    </details>
-                </div>
+               
             </form>
             <div class="login-options">
                 <a href="?action=register" class="option-btn register"><i class="fas fa-user-plus"></i> Crear Cuenta Nueva</a>
