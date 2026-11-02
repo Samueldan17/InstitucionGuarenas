@@ -1,5 +1,5 @@
 <?php
-// login.php - Sistema de autenticación (VERSIÓN 3.9 - Con Ojito integrado)
+// login.php - Sistema de autenticación (VERSIÓN 4.0 - Seguro, sin registro público)
 require_once 'config.php';
 require_once 'functions.php';
 
@@ -12,13 +12,9 @@ if (isset($_SESSION['usuario_id'])) {
 
 $error = '';
 $success = '';
-$show_register = false;
 $show_recovery = false;
 
-if (isset($_GET['action'])) {
-    if ($_GET['action'] === 'register') $show_register = true;
-    elseif ($_GET['action'] === 'recovery') $show_recovery = true;
-}
+if (isset($_GET['action']) && $_GET['action'] === 'recovery') $show_recovery = true;
 
 // LOGIN
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
@@ -83,48 +79,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
     }
 }
 
-// REGISTRO
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['register'])) {
-    $nombres = formatearNombrePropio($_POST['nombres'] ?? '');
-    $apellidos = formatearNombrePropio($_POST['apellidos'] ?? '');
-    $cedula = formatearCedulaParaBD($_POST['cedula'] ?? '');
-    $username = sanitize($_POST['username'] ?? '');
-    $email = sanitize($_POST['email'] ?? '');
-    $telefono = sanitize($_POST['telefono'] ?? '');
-    $password = $_POST['password'] ?? '';
-    $confirm = $_POST['confirm_password'] ?? '';
-
-    if (empty($nombres) || empty($apellidos) || empty($cedula) || empty($username) || empty($email) || empty($password)) {
-        $error = 'Todos los campos obligatorios deben ser llenados';
-    } elseif ($password !== $confirm) {
-        $error = 'Las contraseñas no coinciden';
-    } elseif (($pass_valid = validarPasswordSegura($password)) !== true) {
-        $error = is_string($pass_valid) ? $pass_valid : 'Contraseña inválida';
-    } elseif (!validarEmail($email)) {
-        $error = 'El email no es válido';
-    } elseif (($validacion = validarCedulaVenezolana($cedula)) !== true) {
-        $error = is_string($validacion) ? $validacion : 'Cédula inválida';
-    } else {
-        $db = getDBConnection();
-        if ($db) {
-            try {
-                $checkStmt = $db->prepare("SELECT id FROM usuarios WHERE username = ? OR cedula = ? OR email = ?");
-                $checkStmt->execute([$username, $cedula, $email]);
-                if ($checkStmt->fetch()) {
-                    $error = 'El nombre de usuario, cédula o email ya está registrado';
-                } else {
-                    $hashed_password = password_hash($password, PASSWORD_DEFAULT);
-                    $stmt = $db->prepare("INSERT INTO usuarios (username, cedula, nombres, apellidos, email, telefono, password, rol, activo) VALUES (?, ?, ?, ?, ?, ?, ?, 'docente', 1)");
-                    $stmt->execute([$username, $cedula, $nombres, $apellidos, $email, $telefono, $hashed_password]);
-                    $success = '¡Registro exitoso! Ahora puedes iniciar sesión.';
-                    registrarLog('registro_usuario', 'usuarios', $db->lastInsertId(), "Nuevo usuario: $username");
-                    $show_register = false;
-                }
-            } catch (PDOException $e) { $error = 'Error al registrar usuario'; }
-        }
-    }
-}
-
 // RECUPERACIÓN
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['recovery'])) {
     $email = sanitize($_POST['email'] ?? '');
@@ -143,7 +97,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['recovery'])) {
                     $updateStmt = $db->prepare("UPDATE usuarios SET token_recuperacion = ?, token_expiracion = ? WHERE email = ?");
                     $updateStmt->execute([$token, $expiracion, $email]);
                     $reset_link = APP_URL . "/reset_password.php?token=$token";
-                    $success = "Se ha enviado un enlace de recuperación.<br><small>Enlace: <a href='$reset_link'>$reset_link</a></small>";
+                    // En un sistema real esto se envía por correo. Para la demo, mostramos el enlace.
+                    $success = "Se ha generado un enlace de recuperación.<br><small>Enlace: <a href='$reset_link'>$reset_link</a></small>";
                 } else { $error = 'No existe una cuenta activa con ese email'; }
             } catch (PDOException $e) { $error = 'Error al procesar la solicitud'; }
         }
@@ -165,26 +120,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['recovery'])) {
         .login-options { display:flex; flex-direction:column; gap:12px; margin-top:25px; padding-top:25px; border-top:1px solid #e0e0e0; }
         .option-btn { display:flex; align-items:center; justify-content:center; gap:10px; padding:12px 20px; border:2px solid #3498db; border-radius:8px; background:transparent; color:#3498db; text-decoration:none; font-weight:600; font-size:14px; transition:all 0.3s; cursor:pointer; }
         .option-btn:hover { background:#3498db; color:white; transform:translateY(-2px); }
-        .option-btn.register { border-color:#27ae60; color:#27ae60; }
-        .option-btn.register:hover { background:#27ae60; }
         .option-btn.recovery { border-color:#e74c3c; color:#e74c3c; }
         .option-btn.recovery:hover { background:#e74c3c; }
         .switcher-btn { background:none; border:none; color:#3498db; cursor:pointer; font-size:14px; text-decoration:underline; }
-        .modal-nosotros-btn { background:transparent; border:none; color:#3498db; cursor:pointer; margin:5px 0 15px 0; font-size:14px; text-decoration:underline; }
-        .modal { display:none; position:fixed; z-index:1000; left:0; top:0; width:100%; height:100%; background:rgba(0,0,0,0.5); overflow:auto; }
-        .modal-content { background:white; margin:5% auto; padding:25px; width:80%; max-width:800px; border-radius:10px; position:relative; }
-        .modal-close { float:right; cursor:pointer; font-size:28px; font-weight:bold; color:#333; position:absolute; right:15px; top:10px; }
-        .modal-grid { display:grid; grid-template-columns:1fr 1fr; gap:20px; margin-top:20px; }
-        @media (max-width:768px){ .modal-grid { grid-template-columns:1fr; } }
-        .modal-section h3 { border-bottom:2px solid; padding-bottom:5px; margin-bottom:10px; }
-        .info-general h3 { color:#3498db; border-color:#3498db; }
-        .subsistemas h3 { color:#e74c3c; border-color:#e74c3c; }
-        .mision-vision h3 { color:#27ae60; border-color:#27ae60; }
-        .valores h3 { color:#9b59b6; border-color:#9b59b6; }
-        .comunidad h3 { color:#f39c12; border-color:#f39c12; }
-        .valores-box { background:#f8f9fa; padding:15px; border-radius:8px; text-align:center; }
         
-        /* CSS PERFECTO PARA EL OJITO */
         .password-wrapper { position: relative; width: 100%; }
         .password-wrapper input { width: 100%; padding-right: 40px; }
         .toggle-password { position: absolute; right: 15px; top: 50%; transform: translateY(-50%); cursor: pointer; color: #586069; z-index: 10; }
@@ -198,16 +137,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['recovery'])) {
             </div>
             <h1><?php echo APP_NAME; ?></h1>
             <p class="text-muted">Sistema de Gestión Académica (SIGEB-G)</p>
-            <button class="modal-nosotros-btn" onclick="document.getElementById('modal-nosotros').style.display='block'">
-                <i class="fas fa-info-circle"></i> Acerca de U.E.N Guarenas
-            </button>
         </div>
         
         <?php if ($error): ?><div class="alert-error"><i class="fas fa-exclamation-triangle"></i> <?php echo $error; ?></div><?php endif; ?>
         <?php if ($success): ?><div class="alert alert-success"><i class="fas fa-check-circle"></i> <?php echo $success; ?></div><?php endif; ?>
         <?php if (isset($_GET['timeout'])): ?><div class="alert alert-warning"><i class="fas fa-clock"></i> La sesión ha expirado.</div><?php endif; ?>
         
-        <div id="login-form" <?php echo ($show_register || $show_recovery) ? 'class="hidden"' : ''; ?>>
+        <div id="login-form" <?php echo $show_recovery ? 'class="hidden"' : ''; ?>>
             <form method="POST" class="login-form">
                 <input type="hidden" name="login" value="1">
                 <div class="form-group">
@@ -227,45 +163,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['recovery'])) {
                
             </form>
             <div class="login-options">
-                <a href="?action=register" class="option-btn register"><i class="fas fa-user-plus"></i> Crear Cuenta Nueva</a>
                 <a href="?action=recovery" class="option-btn recovery"><i class="fas fa-key"></i> ¿Olvidaste tu Contraseña?</a>
             </div>
-        </div>
-        
-        <!-- FORMULARIO DE REGISTRO CON OJITOS -->
-        <div id="register-form" <?php echo $show_register ? '' : 'class="hidden"'; ?>>
-            <form method="POST" class="login-form">
-                <input type="hidden" name="register" value="1">
-                <div class="form-group"><label>Nombres</label><input type="text" name="nombres" required class="form-control" value="<?php echo htmlspecialchars($_POST['nombres'] ?? ''); ?>"></div>
-                <div class="form-group"><label>Apellidos</label><input type="text" name="apellidos" required class="form-control" value="<?php echo htmlspecialchars($_POST['apellidos'] ?? ''); ?>"></div>
-                <div class="form-group">
-                    <label>Cédula</label>
-                    <input type="text" name="cedula" required class="form-control cedula" placeholder="12345678" value="<?php echo htmlspecialchars($_POST['cedula'] ?? ''); ?>">
-                </div>
-                <div class="form-group"><label>Usuario</label><input type="text" name="username" required class="form-control" value="<?php echo htmlspecialchars($_POST['username'] ?? ''); ?>"></div>
-                <div class="form-group"><label>Email</label><input type="email" name="email" required class="form-control" value="<?php echo htmlspecialchars($_POST['email'] ?? ''); ?>"></div>
-                <div class="form-group"><label>Teléfono (opcional)</label><input type="text" name="telefono" class="form-control telefono" value="<?php echo htmlspecialchars($_POST['telefono'] ?? ''); ?>"></div>
-                
-                <div class="form-group">
-                    <label>Contraseña (Segura)</label>
-                    <div class="password-wrapper">
-                        <input type="password" name="password" id="reg_pass1" required class="form-control" placeholder="Mín. 8 caracteres" minlength="8">
-                        <i class="fas fa-eye toggle-password" onclick="togglePassword('reg_pass1', this)"></i>
-                    </div>
-                    <small class="form-text">Mayúscula, minúscula, número y símbolo.</small>
-                </div>
-                
-                <div class="form-group">
-                    <label>Confirmar Contraseña</label>
-                    <div class="password-wrapper">
-                        <input type="password" name="confirm_password" id="reg_pass2" required class="form-control" minlength="8">
-                        <i class="fas fa-eye toggle-password" onclick="togglePassword('reg_pass2', this)"></i>
-                    </div>
-                </div>
-                
-                <button type="submit" class="btn btn-primary btn-block"><i class="fas fa-user-plus"></i> Registrarse</button>
-                <div class="form-switcher"><button type="button" class="switcher-btn" onclick="window.location.href='login.php'">← Volver al Login</button></div>
-            </form>
         </div>
         
         <div id="recovery-form" <?php echo $show_recovery ? '' : 'class="hidden"'; ?>>
@@ -282,35 +181,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['recovery'])) {
         </div>
     </div>
 
-    <div id="modal-nosotros" class="modal">
-        <div class="modal-content">
-            <span class="modal-close" onclick="document.getElementById('modal-nosotros').style.display='none'">&times;</span>
-            <center>
-              <img src="<?php echo APP_LOGO; ?>" alt="Logo" style="max-width:120px; margin:10px; border-radius:8px;" onerror="this.onerror=null; this.src='<?php echo APP_LOGO_FALLBACK; ?>';">
-                <h2 style="color:#2c3e50; margin-bottom:5px;">U.E.N. "GUARENAS"</h2>
-                <p style="color:#7f8c8d;"><em>Educación, Amor y Patria</em></p>
-            </center>
-            <div class="modal-grid">
-                <div>
-                    <div class="modal-section info-general">
-                        <h3>📋 Información General</h3>
-                        <p><strong>📍 Dirección:</strong> Calle Roscio El Rincón, Los Teques</p>
-                        <p><strong>📞 Teléfono:</strong> 0212-3641463</p>
-                        <p><strong>👨‍🏫 Director:</strong> Prof. Jhony Castro</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
     <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            window.onclick = function(event) {
-                const modal = document.getElementById('modal-nosotros');
-                if (event.target == modal) modal.style.display = "none";
-            }
-        });
-
         function togglePassword(inputId, icon) {
             const input = document.getElementById(inputId);
             if (input.type === "password") {

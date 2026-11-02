@@ -1,5 +1,5 @@
 <?php
-// config.php - Configuración y funciones del sistema (VERSIÓN 3.5)
+// config.php - Configuración y funciones del sistema (VERSIÓN 4.0)
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
@@ -17,7 +17,7 @@ define('DB_CHARSET', 'utf8mb4');
 // 2. CONFIGURACIÓN DE LA APLICACIÓN
 // =========================================================
 define('APP_NAME', 'U.E.N. Guarenas');
-define('APP_VERSION', '3.5');
+define('APP_VERSION', '4.0');
 
 $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
 $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
@@ -130,12 +130,14 @@ function jsonResponse($success, $message = '', $data = [], $statusCode = 200, $e
 }
 
 // =========================================================
-// 9. VALIDACIONES VENEZOLANAS
+// 9. VALIDACIONES VENEZOLANAS (V, E, J)
 // =========================================================
 function validarCedulaVenezolana($cedula) {
     $cedula = strtoupper(trim($cedula));
-    if (!preg_match('/^[VE]-/', $cedula)) $cedula = 'V-' . $cedula;
-    if (!preg_match('/^[VE]-\d{6,9}$/', $cedula)) return "La cédula debe tener formato V-12345678 o 12345678";
+    // Si no tiene prefijo, se le asigna V-
+    if (!preg_match('/^[VEJ]-/', $cedula)) $cedula = 'V-' . $cedula;
+    // Validar formato
+    if (!preg_match('/^[VEJ]-\d{6,9}$/', $cedula)) return "La cédula debe tener formato V-12345678, E-12345678 o J-12345678";
     return true;
 }
 
@@ -151,8 +153,8 @@ function validarTelefonoVenezolano($telefono) {
 
 function formatearCedulaParaBD($cedula) {
     $cedula = strtoupper(trim($cedula));
-    if (!preg_match('/^[VE]-/', $cedula)) $cedula = 'V-' . $cedula;
-    return preg_replace('/[^VE0-9-]/', '', $cedula);
+    if (!preg_match('/^[VEJ]-/', $cedula)) $cedula = 'V-' . $cedula;
+    return preg_replace('/[^VEJ0-9-]/', '', $cedula);
 }
 
 function formatearNombrePropio($nombre) {

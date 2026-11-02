@@ -1,5 +1,5 @@
 <?php
-// estudiantes.php - Gestión de Estudiantes (VERSIÓN 3.9 - Validación de Edad)
+// estudiantes.php - Gestión de Estudiantes (VERSIÓN 5.8 - Solo letras en nombres, solo números en cédula)
 require_once 'config.php';
 require_once 'functions.php';
 requireAuth();
@@ -15,7 +15,10 @@ if (($_POST['action'] ?? '') == 'crear_estudiante') {
         $error = "Token de seguridad inválido.";
     } else {
         try {
-            $cedula = formatearCedulaParaBD($_POST['cedula'] ?? '');
+            $cedula_prefijo = $_POST['cedula_prefijo'] ?? 'V';
+            $cedula_numero = trim($_POST['cedula_numero'] ?? '');
+            $cedula = formatearCedulaParaBD($cedula_prefijo . '-' . $cedula_numero);
+
             $nombres = formatearNombrePropio($_POST['nombres'] ?? '');
             $apellidos = formatearNombrePropio($_POST['apellidos'] ?? '');
             $email = sanitize($_POST['email'] ?? '');
@@ -29,36 +32,60 @@ if (($_POST['action'] ?? '') == 'crear_estudiante') {
             $tel_est_numero = trim($_POST['telefono_contacto_numero'] ?? '');
             $telefono_contacto = (!empty($tel_est_prefijo) && !empty($tel_est_numero)) ? $tel_est_prefijo . '-' . $tel_est_numero : '';
 
+            $cedula_rep_prefijo = $_POST['cedula_rep_prefijo'] ?? 'V';
+            $cedula_rep_numero = trim($_POST['cedula_rep_numero'] ?? '');
+            $cedula_representante = formatearCedulaParaBD($cedula_rep_prefijo . '-' . $cedula_rep_numero);
+
             $nombre_representante = formatearNombrePropio($_POST['nombre_representante'] ?? '');
-            $cedula_representante = formatearCedulaParaBD($_POST['cedula_representante'] ?? '');
             $email_representante = sanitize($_POST['email_representante'] ?? '');
-            
             $tel_rep_prefijo = $_POST['telefono_representante_prefijo'] ?? '';
             $tel_rep_numero = trim($_POST['telefono_representante_numero'] ?? '');
             $telefono_representante = (!empty($tel_rep_prefijo) && !empty($tel_rep_numero)) ? $tel_rep_prefijo . '-' . $tel_rep_numero : '';
+            
+            $parentesco = $_POST['parentesco'] ?? 'Representante';
+            if ($parentesco === 'Otro') {
+                $parentesco = sanitize($_POST['parentesco_otro'] ?? 'Representante');
+            }
 
-            $parentesco = sanitize($_POST['parentesco'] ?? '');
+            $pass_est = $_POST['password_estudiante'] ?? '';
+            $confirm_est = $_POST['confirm_password_estudiante'] ?? '';
+            $pass_rep = $_POST['password_representante'] ?? '';
+            $confirm_rep = $_POST['confirm_password_representante'] ?? '';
+            
             $procedencia = sanitize($_POST['procedencia'] ?? '');
             $seccion_id = (int)($_POST['seccion_id'] ?? 0);
             $fecha_inscripcion = $_POST['fecha_inscripcion'] ?? date('Y-m-d');
 
-            // VALIDACIONES
             $validacion = validarCedulaVenezolana($cedula);
-            if ($validacion !== true) throw new Exception(is_string($validacion) ? $validacion : "Cédula inválida.");
+            if ($validacion !== true) throw new Exception(is_string($validacion) ? $validacion : "Cédula del estudiante inválida.");
+            
+            $validacion_rep = validarCedulaVenezolana($cedula_representante);
+            if ($validacion_rep !== true) throw new Exception(is_string($validacion_rep) ? $validacion_rep : "Cédula del representante inválida.");
+
             if (empty($nombres) || empty($apellidos)) throw new Exception("Los nombres y apellidos son obligatorios");
             if (empty($seccion_id)) throw new Exception("Debe seleccionar una sección");
             if ($email && !validarEmail($email)) throw new Exception("El email del estudiante no es válido");
-            if ($email_representante && !validarEmail($email_representante)) throw new Exception("El email del representante no es válido");
+            
+            if (empty($cedula_representante) || empty($nombre_representante) || $cedula_representante === 'V-') {
+                throw new Exception("Los datos del representante (Cédula y Nombre) son estrictamente obligatorios.");
+            }
 
-            // VALIDACIÓN DE EDAD (Entre 10 y 25 años)
             if (!empty($fecha_nacimiento)) {
-                $fecha_nac_obj = new DateTime($fecha_nacimiento);
-                $hoy = new DateTime();
-                $edad = $hoy->diff($fecha_nac_obj)->y;
-                if ($edad < 10 || $edad > 25) {
-                    throw new Exception("La fecha de nacimiento no es válida. El estudiante debe tener entre 10 y 25 años.");
+                $anio_nacimiento = (int)date('Y', strtotime($fecha_nacimiento));
+                $anio_actual = (int)date('Y');
+                $edad = $anio_actual - $anio_nacimiento;
+                if ($edad < 10 || $edad > 20) {
+                    throw new Exception("La fecha de nacimiento no es válida. El estudiante debe tener entre 10 y 20 años.");
                 }
             }
+
+            if (empty($pass_est)) throw new Exception("Debe asignar una contraseña al estudiante.");
+            if (($pass_valid = validarPasswordSegura($pass_est)) !== true) throw new Exception("Contraseña Estudiante: " . $pass_valid);
+            if ($pass_est !== $confirm_est) throw new Exception("Las contraseñas del estudiante no coinciden.");
+            
+            if (empty($pass_rep)) throw new Exception("Debe asignar una contraseña al representante.");
+            if (($pass_valid = validarPasswordSegura($pass_rep)) !== true) throw new Exception("Contraseña Representante: " . $pass_valid);
+            if ($pass_rep !== $confirm_rep) throw new Exception("Las contraseñas del representante no coinciden.");
 
             $stmt = $db->prepare("SELECT id FROM estudiantes WHERE cedula = ?");
             $stmt->execute([$cedula]);
@@ -69,41 +96,50 @@ if (($_POST['action'] ?? '') == 'crear_estudiante') {
             
             $estudiante_id = $db->lastInsertId();
             
-            $rep_info = "";
-            if (!empty($cedula_representante)) {
-                $rep_id = crearYVincularRepresentante($estudiante_id, $cedula_representante, $nombre_representante, '', $email_representante, $telefono_representante, $parentesco ?: 'Representante');
-                if ($rep_id) { $rep_info = " Se creó el usuario del representante."; }
-            }
+            crearUsuarioEstudiante($estudiante_id, $pass_est);
+            crearYVincularRepresentante($estudiante_id, $cedula_representante, $nombre_representante, '', $email_representante, $telefono_representante, $parentesco, $pass_rep);
             
-            $message = "✅ Estudiante registrado exitosamente.$rep_info";
+            $message = "✅ Estudiante registrado exitosamente con sus credenciales de acceso.";
             registrarLog('crear_estudiante', 'estudiantes', $estudiante_id, "Nuevo estudiante: $cedula");
-        } catch (Exception $e) { $error = "❌ " . $e->getMessage(); }
+        } catch (Exception $e) { 
+            $error = "❌ " . $e->getMessage(); 
+        }
     }
     header("Location: estudiantes.php?message=" . urlencode($message) . "&error=" . urlencode($error));
     exit;
 }
 
-// CREAR USUARIO PARA ESTUDIANTE
+// CREAR USUARIO MANUALMENTE (Llavecita)
 if (($_POST['action'] ?? '') == 'crear_usuario_estudiante' && isset($_POST['estudiante_id'])) {
     if (!validateCSRFToken($_POST['csrf_token'] ?? '')) {
         $error = "Token de seguridad inválido.";
     } else {
         $estudiante_id = (int)$_POST['estudiante_id'];
-        try {
-            $usuario_id = crearUsuarioEstudiante($estudiante_id);
-            if ($usuario_id) {
-                $stmt = $db->prepare("SELECT cedula, nombres, apellidos FROM estudiantes WHERE id = ?");
-                $stmt->execute([$estudiante_id]);
-                $est = $stmt->fetch();
-                $message = "✅ Usuario creado para {$est['nombres']}. Usuario y contraseña: {$est['cedula']}";
-            } else { $error = "❌ No se pudo crear el usuario."; }
-        } catch (Exception $e) { $error = "❌ Error: " . $e->getMessage(); }
+        $custom_password = $_POST['custom_password'] ?? '';
+
+        if (empty($custom_password)) {
+            $error = "❌ Debe ingresar una contraseña.";
+        } elseif (($pass_valid = validarPasswordSegura($custom_password)) !== true) {
+            $error = "❌ " . $pass_valid;
+        } else {
+            try {
+                $usuario_id = crearUsuarioEstudiante($estudiante_id, $custom_password);
+                if ($usuario_id) {
+                    $stmt = $db->prepare("SELECT cedula, nombres, apellidos FROM estudiantes WHERE id = ?");
+                    $stmt->execute([$estudiante_id]);
+                    $est = $stmt->fetch();
+                    $message = "✅ Usuario creado para {$est['nombres']}.<br><br><strong>Credenciales de Acceso:</strong><br>Usuario: {$est['cedula']}<br>Contraseña: " . htmlspecialchars($custom_password);
+                } else { 
+                    $error = "❌ No se pudo crear el usuario (quizás ya existe)."; 
+                }
+            } catch (Exception $e) { $error = "❌ Error: " . $e->getMessage(); }
+        }
     }
     header("Location: estudiantes.php?message=" . urlencode($message) . "&error=" . urlencode($error));
     exit;
 }
 
-// ELIMINAR ESTUDIANTE
+// ELIMINAR (DESACTIVAR) ESTUDIANTE
 if (($_POST['action'] ?? '') == 'eliminar_estudiante' && isset($_POST['id'])) {
     if (!validateCSRFToken($_POST['csrf_token'] ?? '')) {
         $error = "Token de seguridad inválido.";
@@ -148,12 +184,7 @@ $countStmt->execute($params);
 $totalItems = $countStmt->fetchColumn();
 $totalPages = ceil($totalItems / $perPage);
 
-$query = "SELECT e.*, g.nombre as grado_nombre, s.letra as seccion_letra, s.turno,
-          (SELECT COUNT(*) FROM representantes_estudiantes re WHERE re.estudiante_id = e.id) as total_representantes
-          FROM estudiantes e 
-          LEFT JOIN secciones s ON e.seccion_id = s.id 
-          LEFT JOIN grados g ON s.grado_id = g.id 
-          $whereClause ORDER BY e.apellidos, e.nombres LIMIT $perPage OFFSET $offset";
+$query = "SELECT e.*, g.nombre as grado_nombre, s.letra as seccion_letra, s.turno FROM estudiantes e LEFT JOIN secciones s ON e.seccion_id = s.id LEFT JOIN grados g ON s.grado_id = g.id $whereClause ORDER BY e.apellidos, e.nombres LIMIT $perPage OFFSET $offset";
 $stmt = $db->prepare($query);
 $stmt->execute($params);
 $estudiantes = $stmt->fetchAll();
@@ -166,9 +197,9 @@ $totalInactivos = $db->query("SELECT COUNT(*) FROM estudiantes WHERE estado = 'i
 $totalConUsuario = $db->query("SELECT COUNT(*) FROM estudiantes WHERE usuario_id IS NOT NULL AND estado = 'activo'")->fetchColumn();
 $totalSinUsuario = $db->query("SELECT COUNT(*) FROM estudiantes WHERE usuario_id IS NULL AND estado = 'activo'")->fetchColumn();
 
-// Calcular fecha máxima permitida (10 años atrás) y mínima (25 años atrás)
-$fecha_max = date('Y-m-d', strtotime('-10 years'));
-$fecha_min = date('Y-m-d', strtotime('-25 years'));
+$anio_actual = date('Y');
+$min_year = $anio_actual - 20; 
+$max_year = $anio_actual - 10; 
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -181,6 +212,9 @@ $fecha_min = date('Y-m-d', strtotime('-25 years'));
         .phone-group { display: flex; gap: 8px; width: 100%; align-items: center; }
         .phone-group select.form-control { width: 85px !important; flex-shrink: 0; padding: 8px 4px; text-align: center; }
         .phone-group input.form-control { flex: 1; min-width: 0; padding: 8px; }
+        .password-wrapper { position: relative; width: 100%; }
+        .password-wrapper input { width: 100%; padding-right: 40px; }
+        .toggle-password { position: absolute; right: 15px; top: 50%; transform: translateY(-50%); cursor: pointer; color: #586069; z-index: 10; }
     </style>
 </head>
 <body>
@@ -246,20 +280,19 @@ $fecha_min = date('Y-m-d', strtotime('-25 years'));
                                 <tr>
                                     <td><strong><?php echo htmlspecialchars($est['cedula']); ?></strong></td>
                                     <td><?php echo htmlspecialchars($est['apellidos'] . ', ' . $est['nombres']); ?></td>
-                                    <td>
-                                        <?php if ($est['grado_nombre']): ?><?php echo htmlspecialchars($est['grado_nombre'] . ' ' . $est['seccion_letra']); ?> <small class="text-muted">(<?php echo $est['turno']; ?>)</small><?php else: ?><span class="text-muted">Sin sección</span><?php endif; ?>
-                                    </td>
+                                    <td><?php echo $est['grado_nombre'] ? htmlspecialchars($est['grado_nombre'] . ' ' . $est['seccion_letra']) : 'Sin sección'; ?></td>
                                     <td><?php echo htmlspecialchars($est['nombre_representante'] ?: '—'); ?></td>
-                                    <td><?php if ($est['usuario_id']): ?><span class="badge badge-success"><i class="fas fa-check"></i> Sí</span><?php else: ?><span class="badge badge-secondary"><i class="fas fa-times"></i> No</span><?php endif; ?></td>
+                                    <td><?php if ($est['usuario_id']): ?><span class="badge badge-success">Sí</span><?php else: ?><span class="badge badge-secondary">No</span><?php endif; ?></td>
                                     <td><span class="badge badge-<?php echo $est['estado']=='activo'?'success':($est['estado']=='inactivo'?'danger':'info'); ?>"><?php echo ucfirst($est['estado']); ?></span></td>
                                     <td class="actions">
-                                        <a href="editar_estudiante.php?id=<?php echo $est['id']; ?>" class="btn btn-sm btn-info"><i class="fas fa-edit"></i></a>
+                                        <a href="editar_estudiante.php?id=<?php echo $est['id']; ?>" class="btn btn-sm btn-info" title="Editar"><i class="fas fa-edit"></i></a>
                                         <?php if (!$est['usuario_id'] && $est['estado'] == 'activo'): ?>
-                                            <form method="POST" style="display:inline;" onsubmit="return confirm('¿Crear usuario?')">
+                                            <form method="POST" style="display:inline;" class="form-crear-usuario" data-nombre="<?php echo htmlspecialchars($est['nombres'] . ' ' . $est['apellidos']); ?>">
                                                 <input type="hidden" name="action" value="crear_usuario_estudiante">
                                                 <input type="hidden" name="estudiante_id" value="<?php echo $est['id']; ?>">
                                                 <input type="hidden" name="csrf_token" value="<?php echo generateCSRFToken(); ?>">
-                                                <button type="submit" class="btn btn-sm btn-success"><i class="fas fa-key"></i></button>
+                                                <input type="hidden" name="custom_password" class="custom_password_input" value="">
+                                                <button type="button" class="btn btn-sm btn-success btn-llave" title="Crear Usuario con Contraseña Personalizada"><i class="fas fa-key"></i></button>
                                             </form>
                                         <?php endif; ?>
                                         <form method="POST" style="display:inline;" onsubmit="return confirm('¿Desactivar?')">
@@ -292,6 +325,7 @@ $fecha_min = date('Y-m-d', strtotime('-25 years'));
     </main>
 </div>
 
+<!-- MODAL NUEVO ESTUDIANTE -->
 <div id="modalNuevoEstudiante" class="modal">
     <div class="modal-content" style="max-width:900px;">
         <div class="modal-close" onclick="cerrarModalNuevoEstudiante()">&times;</div>
@@ -301,20 +335,35 @@ $fecha_min = date('Y-m-d', strtotime('-25 years'));
                 <form method="POST" action="estudiantes.php">
                     <input type="hidden" name="action" value="crear_estudiante">
                     <input type="hidden" name="csrf_token" value="<?php echo generateCSRFToken(); ?>">
+                    
                     <div class="form-grid">
-                        <div class="form-group"><label>Cédula</label><input type="text" name="cedula" class="form-control cedula" required placeholder="12345678"></div>
-                        <div class="form-group"><label>Nombres</label><input type="text" name="nombres" class="form-control" required></div>
-                        <div class="form-group"><label>Apellidos</label><input type="text" name="apellidos" class="form-control" required></div>
+                        <!-- DATOS DEL ESTUDIANTE -->
+                        <div class="form-group full-width" style="margin-top: 10px;"><h3 style="border-bottom: 2px solid #2c3e50; padding-bottom: 5px;"><i class="fas fa-user"></i> Datos del Estudiante</h3></div>
+                        
+                        <div class="form-group">
+                            <label>Cédula</label>
+                            <div class="phone-group">
+                                <select name="cedula_prefijo" class="form-control" style="width: 80px !important;">
+                                    <option value="V">V</option>
+                                    <option value="E">E</option>
+                                </select>
+                                <input type="text" name="cedula_numero" class="form-control" required placeholder="12345678" maxlength="8" pattern="\d{6,8}" title="Solo números (6 a 8 dígitos)" oninput="this.value = this.value.replace(/[^0-9]/g, '')">
+                            </div>
+                        </div>
+
+                        <!-- AGREGADO oninput PARA SOLO LETRAS Y ESPACIOS EN NOMBRES -->
+                        <div class="form-group"><label>Nombres</label><input type="text" name="nombres" class="form-control" required oninput="this.value = this.value.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑ\s]/g, '')"></div>
+                        <div class="form-group"><label>Apellidos</label><input type="text" name="apellidos" class="form-control" required oninput="this.value = this.value.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑ\s]/g, '')"></div>
+                        
                         <div class="form-group"><label>Email</label><input type="email" name="email" class="form-control"></div>
                         <div class="form-group">
                             <label>Fecha Nacimiento</label>
-                            <!-- LÍMITES DE FECHA: Mínimo 10 años atrás, máximo 25 años atrás -->
-                            <input type="date" name="fecha_nacimiento" class="form-control" min="<?php echo $fecha_min; ?>" max="<?php echo $fecha_max; ?>" required>
-                            <small class="form-text">Entre 10 y 25 años de edad.</small>
+                            <input type="date" name="fecha_nacimiento" class="form-control" min="<?php echo $min_year; ?>-01-01" max="<?php echo $max_year; ?>-12-31" required>
+                            <small class="form-text">Permitido entre los años <?php echo $min_year; ?> y <?php echo $max_year; ?>.</small>
                         </div>
                         <div class="form-group"><label>Género</label><select name="genero" class="form-control"><option value="">Seleccione...</option><option value="M">Masculino</option><option value="F">Femenino</option></select></div>
-                        <div class="form-group"><label>Nacionalidad</label><input type="text" name="nacionalidad" class="form-control" value="Venezolana"></div>
-                        <div class="form-group"><label>Lugar de Nacimiento</label><input type="text" name="lugar_nacimiento" class="form-control"></div>
+                        <div class="form-group"><label>Nacionalidad</label><input type="text" name="nacionalidad" class="form-control" value="Venezolana" oninput="this.value = this.value.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑ\s]/g, '')"></div>
+                        <div class="form-group"><label>Lugar de Nacimiento</label><input type="text" name="lugar_nacimiento" class="form-control" oninput="this.value = this.value.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑ\s]/g, '')"></div>
                         <div class="form-group full-width"><label>Dirección</label><textarea name="direccion" class="form-control" rows="2"></textarea></div>
                         
                         <div class="form-group">
@@ -323,34 +372,103 @@ $fecha_min = date('Y-m-d', strtotime('-25 years'));
                                 <select name="telefono_contacto_prefijo" class="form-control">
                                     <option value="">-</option><option value="0412">0412</option><option value="0414">0414</option><option value="0416">0416</option><option value="0424">0424</option><option value="0426">0426</option><option value="0428">0428</option>
                                 </select>
-                                <input type="text" name="telefono_contacto_numero" class="form-control" placeholder="1234567" maxlength="7" pattern="\d{7}">
+                                <input type="text" name="telefono_contacto_numero" class="form-control" placeholder="1234567" maxlength="7" pattern="\d{7}" oninput="this.value = this.value.replace(/[^0-9]/g, '')">
                             </div>
                         </div>
                         
+                        <!-- DATOS ACADÉMICOS -->
+                        <div class="form-group"><label>Procedencia</label><input type="text" name="procedencia" class="form-control" placeholder="Escuela de donde viene"></div>
                         <div class="form-group"><label>Sección</label><select name="seccion_id" class="form-control" required><option value="">Seleccione</option><?php foreach ($secciones as $sec): ?><option value="<?php echo $sec['id']; ?>"><?php echo htmlspecialchars($sec['grado'] . ' ' . $sec['letra'] . ' (' . $sec['turno'] . ')'); ?></option><?php endforeach; ?></select></div>
+                        <div class="form-group"><label>Fecha Inscripción</label><input type="date" name="fecha_inscripcion" class="form-control" value="<?php echo date('Y-m-d'); ?>"></div>
+
+                        <!-- ACCESO ESTUDIANTE -->
+                        <div class="form-group full-width" style="margin-top: 10px;">
+                            <h3 style="border-bottom: 2px solid #27ae60; padding-bottom: 5px; color: #27ae60;"><i class="fas fa-key"></i> Credenciales del Estudiante</h3>
+                            <small class="text-muted">El usuario será la cédula del estudiante.</small>
+                        </div>
+                        <div class="form-group">
+                            <label>Contraseña Segura *</label>
+                            <div class="password-wrapper">
+                                <input type="password" name="password_estudiante" id="pass_est" class="form-control" required>
+                                <i class="fas fa-eye toggle-password" onclick="togglePassword('pass_est', this)"></i>
+                            </div>
+                            <small class="form-text">Mín. 8 caracteres, mayúscula, minúscula, número y símbolo.</small>
+                        </div>
+                        <div class="form-group">
+                            <label>Confirmar Contraseña *</label>
+                            <div class="password-wrapper">
+                                <input type="password" name="confirm_password_estudiante" id="pass_est_conf" class="form-control" required>
+                                <i class="fas fa-eye toggle-password" onclick="togglePassword('pass_est_conf', this)"></i>
+                            </div>
+                        </div>
                         
-                        <div class="form-group full-width" style="margin-top: 10px;"><h3 style="border-bottom: 2px solid #3498db; padding-bottom: 5px;"><i class="fas fa-users"></i> Datos del Representante</h3></div>
+                        <!-- DATOS DEL REPRESENTANTE -->
+                        <div class="form-group full-width" style="margin-top: 10px;"><h3 style="border-bottom: 2px solid #3498db; padding-bottom: 5px;"><i class="fas fa-users"></i> Datos del Representante (Obligatorios)</h3></div>
                         
-                        <div class="form-group"><label>Cédula del Representante</label><input type="text" name="cedula_representante" class="form-control cedula" placeholder="12345678"></div>
-                        <div class="form-group"><label>Nombre</label><input type="text" name="nombre_representante" class="form-control"></div>
-                        <div class="form-group"><label>Parentesco</label><input type="text" name="parentesco" class="form-control"></div>
+                        <div class="form-group">
+                            <label>Cédula del Representante *</label>
+                            <div class="phone-group">
+                                <select name="cedula_rep_prefijo" class="form-control" style="width: 80px !important;">
+                                    <option value="V">V</option>
+                                    <option value="E">E</option>
+                                    <option value="J">J</option>
+                                </select>
+                                <input type="text" name="cedula_rep_numero" class="form-control" required placeholder="12345678" maxlength="8" pattern="\d{6,8}" title="Solo números (6 a 8 dígitos)" oninput="this.value = this.value.replace(/[^0-9]/g, '')">
+                            </div>
+                        </div>
+
+                        <!-- AGREGADO oninput PARA NOMBRE REPRESENTANTE -->
+                        <div class="form-group"><label>Nombre del Representante *</label><input type="text" name="nombre_representante" class="form-control" required oninput="this.value = this.value.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑ\s]/g, '')"></div>
+                        
+                        <div class="form-group">
+                            <label>Parentesco *</label>
+                            <select name="parentesco" id="parentesco_select" class="form-control" onchange="toggleParentescoOtro()" required>
+                                <option value="">Seleccione...</option>
+                                <option value="Madre">Madre</option>
+                                <option value="Padre">Padre</option>
+                                <option value="Representante Legal">Representante Legal</option>
+                                <option value="Otro">Otro</option>
+                            </select>
+                        </div>
+                        <div class="form-group" id="parentesco_otro_group" style="display: none;">
+                            <label>Especifique el Parentesco *</label>
+                            <input type="text" name="parentesco_otro" id="parentesco_otro" class="form-control" placeholder="Ej: Abuela, Tío, Hermano" oninput="this.value = this.value.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑ\s]/g, '')">
+                        </div>
+                        
                         <div class="form-group"><label>Email</label><input type="email" name="email_representante" class="form-control"></div>
-                        
                         <div class="form-group">
                             <label>Teléfono Representante</label>
                             <div class="phone-group">
                                 <select name="telefono_representante_prefijo" class="form-control">
                                     <option value="">-</option><option value="0412">0412</option><option value="0414">0414</option><option value="0416">0416</option><option value="0424">0424</option><option value="0426">0426</option><option value="0428">0428</option>
                                 </select>
-                                <input type="text" name="telefono_representante_numero" class="form-control" placeholder="1234567" maxlength="7" pattern="\d{7}">
+                                <input type="text" name="telefono_representante_numero" class="form-control" placeholder="1234567" maxlength="7" pattern="\d{7}" oninput="this.value = this.value.replace(/[^0-9]/g, '')">
                             </div>
                         </div>
 
-                        <div class="form-group"><label>Procedencia</label><input type="text" name="procedencia" class="form-control"></div>
-                        <div class="form-group"><label>Fecha Inscripción</label><input type="date" name="fecha_inscripcion" class="form-control" value="<?php echo date('Y-m-d'); ?>"></div>
+                        <!-- ACCESO REPRESENTANTE -->
+                        <div class="form-group full-width" style="margin-top: 10px;">
+                            <h3 style="border-bottom: 2px solid #e67e22; padding-bottom: 5px; color: #e67e22;"><i class="fas fa-key"></i> Credenciales del Representante</h3>
+                            <small class="text-muted">El usuario será la cédula del representante.</small>
+                        </div>
+                        <div class="form-group">
+                            <label>Contraseña Segura *</label>
+                            <div class="password-wrapper">
+                                <input type="password" name="password_representante" id="pass_rep" class="form-control" required>
+                                <i class="fas fa-eye toggle-password" onclick="togglePassword('pass_rep', this)"></i>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Confirmar Contraseña *</label>
+                            <div class="password-wrapper">
+                                <input type="password" name="confirm_password_representante" id="pass_rep_conf" class="form-control" required>
+                                <i class="fas fa-eye toggle-password" onclick="togglePassword('pass_rep_conf', this)"></i>
+                            </div>
+                        </div>
                     </div>
-                    <div class="form-actions">
-                        <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Guardar Estudiante</button>
+                    
+                    <div class="form-actions" style="margin-top: 20px;">
+                        <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Guardar y Crear Accesos</button>
                         <button type="reset" class="btn btn-secondary" onclick="cerrarModalNuevoEstudiante()">Cancelar</button>
                     </div>
                 </form>
@@ -365,6 +483,51 @@ $fecha_min = date('Y-m-d', strtotime('-25 years'));
 function abrirModalNuevoEstudiante() { document.getElementById('modalNuevoEstudiante').style.display = 'block'; }
 function cerrarModalNuevoEstudiante() { document.getElementById('modalNuevoEstudiante').style.display = 'none'; }
 window.onclick = function(e) { if(e.target == document.getElementById('modalNuevoEstudiante')) cerrarModalNuevoEstudiante(); }
+
+function togglePassword(inputId, icon) {
+    const input = document.getElementById(inputId);
+    if (input.type === "password") {
+        input.type = "text";
+        icon.classList.remove("fa-eye");
+        icon.classList.add("fa-eye-slash"); 
+    } else {
+        input.type = "password";
+        icon.classList.remove("fa-eye-slash");
+        icon.classList.add("fa-eye");
+    }
+}
+
+function toggleParentescoOtro() {
+    const select = document.getElementById('parentesco_select');
+    const grupoOtro = document.getElementById('parentesco_otro_group');
+    if (select.value === 'Otro') {
+        grupoOtro.style.display = 'block';
+    } else {
+        grupoOtro.style.display = 'none';
+    }
+}
+
+// Lógica para que la llavecita pida la contraseña
+document.addEventListener('DOMContentLoaded', function() {
+    const botonesLlave = document.querySelectorAll('.btn-llave');
+    botonesLlave.forEach(boton => {
+        boton.addEventListener('click', function() {
+            const form = this.closest('.form-crear-usuario');
+            const nombre = form.getAttribute('data-nombre');
+            
+            let pass = prompt(`Ingrese la contraseña para ${nombre}.\n\nRegla: Mín. 8 caracteres, mayúscula, minúscula, número y símbolo.`);
+            
+            if (pass !== null) {
+                if (pass.trim() === '') {
+                    alert("La contraseña no puede estar vacía.");
+                    return;
+                }
+                form.querySelector('.custom_password_input').value = pass;
+                form.submit();
+            }
+        });
+    });
+});
 </script>
 </body>
 </html>

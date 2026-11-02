@@ -1,17 +1,16 @@
 <?php
-// functions.php - Funciones de lógica de negocio (SIGEB-G) - VERSIÓN 3.6
+// functions.php - Funciones de lógica de negocio (SIGEB-G)
+require_once 'config.php';
 
 // =========================================================
 // FUNCIONES DE BOLETA
 // =========================================================
-
 function getBoletaData(int $estudianteId, int $lapso, int $anio_escolar = null) {
     $db = getDBConnection();
     if (!$db) return ['error' => 'No se pudo conectar a la base de datos.'];
     if ($anio_escolar === null) $anio_escolar = date('Y');
 
     try {
-        // 1. Info del estudiante
         $stmt = $db->prepare("
             SELECT e.id, e.cedula, e.nombres, e.apellidos, e.fecha_nacimiento,
                    e.email, e.nacionalidad, e.lugar_nacimiento,
@@ -29,7 +28,6 @@ function getBoletaData(int $estudianteId, int $lapso, int $anio_escolar = null) 
         $infoEstudiante = $stmt->fetch();
         if (!$infoEstudiante) return ['error' => 'Estudiante no encontrado.'];
 
-        // 2. Notas (nueva estructura: nota + es_recuperacion)
         $stmt = $db->prepare("
             SELECT m.id AS materia_id, m.nombre AS materia_nombre, m.area,
                    n.lapso, n.nota, n.es_recuperacion, n.observaciones,
@@ -47,7 +45,6 @@ function getBoletaData(int $estudianteId, int $lapso, int $anio_escolar = null) 
         $stmt->execute([$estudianteId, $anio_escolar, $estudianteId, $anio_escolar]);
         $filas = $stmt->fetchAll();
 
-        // 3. Agrupar por materia
         $materias_agrupadas = [];
         foreach ($filas as $fila) {
             $mid = $fila['materia_id'];
@@ -70,7 +67,6 @@ function getBoletaData(int $estudianteId, int $lapso, int $anio_escolar = null) 
             }
         }
 
-        // 4. Calcular definitiva y nota final
         $notas = [];
         foreach ($materias_agrupadas as $mat) {
             $lapsos = array_filter([$mat['lapso1'], $mat['lapso2'], $mat['lapso3']], function($n) { return $n !== null; });
@@ -112,7 +108,6 @@ function getBoletaData(int $estudianteId, int $lapso, int $anio_escolar = null) 
             'anio_escolar' => $anio_escolar
         ];
     } catch (PDOException $e) {
-        error_log("Error en getBoletaData: " . $e->getMessage());
         return ['error' => 'Error al consultar datos: ' . $e->getMessage()];
     }
 }
@@ -136,9 +131,8 @@ function fechaEspañol($fecha) {
 }
 
 // =========================================================
-// FUNCIONES DE REPRESENTANTES
+// FUNCIONES DE REPRESENTANTES Y ESTUDIANTES
 // =========================================================
-
 function getRepresentados($representante_id) {
     $db = getDBConnection();
     if (!$db) return [];
@@ -157,7 +151,6 @@ function getRepresentados($representante_id) {
         $stmt->execute([$representante_id]);
         return $stmt->fetchAll();
     } catch (PDOException $e) {
-        error_log("Error en getRepresentados: " . $e->getMessage());
         return [];
     }
 }
@@ -177,7 +170,6 @@ function getEstudiantePorUsuario($usuario_id) {
         $stmt->execute([$usuario_id]);
         return $stmt->fetch();
     } catch (PDOException $e) {
-        error_log("Error en getEstudiantePorUsuario: " . $e->getMessage());
         return null;
     }
 }
@@ -193,16 +185,11 @@ function vincularRepresentanteEstudiante($representante_id, $estudiante_id, $par
         ");
         return $stmt->execute([$representante_id, $estudiante_id, $parentesco, $es_principal]);
     } catch (PDOException $e) {
-        error_log("Error en vincularRepresentanteEstudiante: " . $e->getMessage());
         return false;
     }
 }
 
-// =========================================================
-// CREACIÓN DE USUARIOS
-// =========================================================
-
-function crearUsuarioEstudiante($estudiante_id) {
+function crearUsuarioEstudiante($estudiante_id, $custom_password = null) {
     $db = getDBConnection();
     if (!$db) return false;
     try {
@@ -217,13 +204,12 @@ function crearUsuarioEstudiante($estudiante_id) {
         if ($check->fetch()) return false;
 
         $username = $est['cedula'];
-        $password_hash = password_hash($est['cedula'], PASSWORD_DEFAULT);
+        $password_a_usar = $custom_password ?: 'Guarenas2026*'; 
+        $password_hash = password_hash($password_a_usar, PASSWORD_DEFAULT);
+        
         $email = $est['email'] ?: strtolower(str_replace('-', '', $est['cedula'])) . '@uenguarenas.edu.ve';
 
-        $stmt = $db->prepare("
-            INSERT INTO usuarios (username, cedula, nombres, apellidos, email, telefono, rol, password, activo)
-            VALUES (?, ?, ?, ?, ?, ?, 'estudiante', ?, 1)
-        ");
+        $stmt = $db->prepare("INSERT INTO usuarios (username, cedula, nombres, apellidos, email, telefono, rol, password, activo) VALUES (?, ?, ?, ?, ?, ?, 'estudiante', ?, 1)");
         $stmt->execute([$username, $est['cedula'], $est['nombres'], $est['apellidos'], $email, $est['telefono_contacto'], $password_hash]);
         $nuevo_usuario_id = $db->lastInsertId();
 
@@ -232,39 +218,11 @@ function crearUsuarioEstudiante($estudiante_id) {
         registrarLog('crear_usuario_estudiante', 'usuarios', $nuevo_usuario_id, "Usuario para estudiante {$est['cedula']}");
         return $nuevo_usuario_id;
     } catch (PDOException $e) {
-        error_log("Error en crearUsuarioEstudiante: " . $e->getMessage());
         return false;
     }
 }
 
-function crearUsuarioRepresentante($cedula, $nombres, $apellidos, $email = null, $telefono = null) {
-    $db = getDBConnection();
-    if (!$db) return false;
-    try {
-        $cedula = formatearCedulaParaBD($cedula);
-        $check = $db->prepare("SELECT id FROM usuarios WHERE cedula = ?");
-        $check->execute([$cedula]);
-        if ($check->fetch()) return false;
-
-        $username = $cedula;
-        $password_hash = password_hash($cedula, PASSWORD_DEFAULT);
-        $email = $email ?: strtolower(str_replace('-', '', $cedula)) . '@uenguarenas.edu.ve';
-
-        $stmt = $db->prepare("
-            INSERT INTO usuarios (username, cedula, nombres, apellidos, email, telefono, rol, password, activo)
-            VALUES (?, ?, ?, ?, ?, ?, 'representante', ?, 1)
-        ");
-        $stmt->execute([$username, $cedula, $nombres, $apellidos, $email, $telefono, $password_hash]);
-        $nuevo_id = $db->lastInsertId();
-        registrarLog('crear_usuario_representante', 'usuarios', $nuevo_id, "Nuevo representante: $cedula");
-        return $nuevo_id;
-    } catch (PDOException $e) {
-        error_log("Error en crearUsuarioRepresentante: " . $e->getMessage());
-        return false;
-    }
-}
-
-function crearYVincularRepresentante($estudiante_id, $cedula_rep, $nombre_rep = '', $apellido_rep = '', $email_rep = null, $telefono_rep = null, $parentesco = 'Representante') {
+function crearYVincularRepresentante($estudiante_id, $cedula_rep, $nombre_rep = '', $apellido_rep = '', $email_rep = null, $telefono_rep = null, $parentesco = 'Representante', $custom_password = null) {
     $db = getDBConnection();
     if (!$db) return false;
     try {
@@ -285,14 +243,19 @@ function crearYVincularRepresentante($estudiante_id, $cedula_rep, $nombre_rep = 
         if ($rep) {
             $representante_id = $rep['id'];
         } else {
-            $representante_id = crearUsuarioRepresentante($cedula_rep, $nombre_rep ?: 'Representante', $apellido_rep, $email_rep, $telefono_rep);
-            if (!$representante_id) return false;
+            $password_a_usar = $custom_password ?: 'Representante2026*';
+            $hash = password_hash($password_a_usar, PASSWORD_DEFAULT);
+            $email = $email_rep ?: strtolower(str_replace('-', '', $cedula_rep)) . '@uenguarenas.edu.ve';
+            
+            $stmt = $db->prepare("INSERT INTO usuarios (username, cedula, nombres, apellidos, email, telefono, rol, password, activo) VALUES (?, ?, ?, ?, ?, ?, 'representante', ?, 1)");
+            $stmt->execute([$cedula_rep, $cedula_rep, $nombre_rep ?: 'Representante', $apellido_rep, $email, $telefono_rep, $hash]);
+            $representante_id = $db->lastInsertId();
+            registrarLog('crear_usuario_representante', 'usuarios', $representante_id, "Nuevo representante: $cedula_rep");
         }
 
         vincularRepresentanteEstudiante($representante_id, $estudiante_id, $parentesco, 1);
         return $representante_id;
     } catch (PDOException $e) {
-        error_log("Error en crearYVincularRepresentante: " . $e->getMessage());
         return false;
     }
 }
@@ -300,7 +263,6 @@ function crearYVincularRepresentante($estudiante_id, $cedula_rep, $nombre_rep = 
 // =========================================================
 // CONFIGURACIÓN
 // =========================================================
-
 function getConfig($db, $clave, $default = null) {
     try {
         $stmt = $db->prepare("SELECT valor FROM configuracion WHERE clave = ?");
@@ -314,33 +276,19 @@ function getConfig($db, $clave, $default = null) {
 
 function setConfig($db, $clave, $valor) {
     try {
-        $stmt = $db->prepare("INSERT INTO configuracion (clave, valor) VALUES (?, ?) 
-                              ON DUPLICATE KEY UPDATE valor = VALUES(valor)");
+        $stmt = $db->prepare("INSERT INTO configuracion (clave, valor) VALUES (?, ?) ON DUPLICATE KEY UPDATE valor = VALUES(valor)");
         return $stmt->execute([$clave, $valor]);
     } catch (PDOException $e) {
         return false;
     }
 }
-// =========================================================
-// FUNCIÓN: Validar Contraseña Segura
-// =========================================================
+
 function validarPasswordSegura($password) {
-    // Mínimo 8 caracteres, al menos una mayúscula, una minúscula, un número y un símbolo
-    if (strlen($password) < 8) {
-        return "La contraseña debe tener al menos 8 caracteres.";
-    }
-    if (!preg_match('/[A-Z]/', $password)) {
-        return "La contraseña debe incluir al menos una letra MAYÚSCULA.";
-    }
-    if (!preg_match('/[a-z]/', $password)) {
-        return "La contraseña debe incluir al menos una letra minúscula.";
-    }
-    if (!preg_match('/[0-9]/', $password)) {
-        return "La contraseña debe incluir al menos un número.";
-    }
-    if (!preg_match('/[^A-Za-z0-9]/', $password)) {
-        return "La contraseña debe incluir al menos un símbolo (ej. ! @ # $ %).";
-    }
-    return true; // Contraseña válida
+    if (strlen($password) < 8) return "La contraseña debe tener al menos 8 caracteres.";
+    if (!preg_match('/[A-Z]/', $password)) return "La contraseña debe incluir al menos una letra MAYÚSCULA.";
+    if (!preg_match('/[a-z]/', $password)) return "La contraseña debe incluir al menos una letra minúscula.";
+    if (!preg_match('/[0-9]/', $password)) return "La contraseña debe incluir al menos un número.";
+    if (!preg_match('/[^A-Za-z0-9]/', $password)) return "La contraseña debe incluir al menos un símbolo (ej. ! @ # $ %).";
+    return true;
 }
 ?>
