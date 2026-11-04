@@ -1,7 +1,7 @@
 <?php
 error_reporting(E_ALL);
 ini_set('display_errors', 0); // Ocultar errores en pantalla
-ini_set('log_errors', 1);     // Guardar errores en un archivo de log interno
+ini_set('log_errors', 1);     // Guardar errores en un archivo de log internoD
 // config.php - Configuración y funciones del sistema (VERSIÓN 4.0)
 if (session_status() === PHP_SESSION_NONE) {
     session_start();

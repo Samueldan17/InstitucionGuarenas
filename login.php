@@ -1,5 +1,5 @@
 <?php
-// login.php - Sistema de autenticación (VERSIÓN 4.0 - Seguro, sin registro público)
+// login.php - Sistema de autenticación (VERSIÓN FINAL - Producción)
 require_once 'config.php';
 require_once 'functions.php';
 
@@ -29,9 +29,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
         if (!$db) { $error = 'Error de conexión a la base de datos'; } 
         else {
             try {
+                // Verificar bloqueo por intentos fallidos
                 $stmt = $db->prepare("SELECT bloqueado_hasta FROM login_attempts WHERE ip = ? ORDER BY ultimo_intento DESC LIMIT 1");
                 $stmt->execute([$ip]);
                 $bloqueo = $stmt->fetch();
+                
                 if ($bloqueo && $bloqueo['bloqueado_hasta'] && strtotime($bloqueo['bloqueado_hasta']) > time()) {
                     $error = 'Demasiados intentos fallidos. Intente nuevamente después de 15 minutos.';
                 } else {
@@ -40,6 +42,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
                     $stmt->execute([$username, $username, $cedula_formateada]);
                     $usuario = $stmt->fetch();
 
+                    // VALIDACIÓN ESTRICTA CON BCRYPT (Sin bypass)
                     if ($usuario && password_verify($password, $usuario['password'])) {
                         session_regenerate_id(true);
                         $_SESSION['usuario_id'] = $usuario['id'];
@@ -48,12 +51,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
                         $_SESSION['last_activity'] = time();
                         $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 
+                        // Limpiar intentos fallidos al entrar con éxito
                         $stmt = $db->prepare("DELETE FROM login_attempts WHERE ip = ?");
                         $stmt->execute([$ip]);
+                        
                         $updateStmt = $db->prepare("UPDATE usuarios SET ultimo_acceso = NOW() WHERE id = ?");
                         $updateStmt->execute([$usuario['id']]);
                         registrarLog('login_exitoso', 'usuarios', $usuario['id'], "Usuario {$usuario['username']} inició sesión");
 
+                        // Redirigir según el rol
                         switch ($usuario['rol']) {
                             case 'estudiante': header('Location: panel_estudiante.php'); break;
                             case 'representante': header('Location: panel_representante.php'); break;
@@ -61,25 +67,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
                         }
                         exit;
                     } else {
+                        // Registrar intento fallido
                         $stmt = $db->prepare("INSERT INTO login_attempts (ip, usuario, intentos, ultimo_intento) VALUES (?, ?, 1, NOW()) ON DUPLICATE KEY UPDATE intentos = intentos + 1, ultimo_intento = NOW()");
                         $stmt->execute([$ip, $username]);
                         $stmt = $db->prepare("SELECT intentos FROM login_attempts WHERE ip = ?");
                         $stmt->execute([$ip]);
                         $intentos = $stmt->fetch();
+                        
+                        // Bloquear si supera el máximo
                         if ($intentos && $intentos['intentos'] >= MAX_LOGIN_ATTEMPTS) {
                             $bloqueo_hasta = date('Y-m-d H:i:s', time() + LOGIN_BLOCK_TIME);
                             $stmt = $db->prepare("UPDATE login_attempts SET bloqueado_hasta = ? WHERE ip = ?");
                             $stmt->execute([$bloqueo_hasta, $ip]);
                             $error = 'Demasiados intentos fallidos. Su IP ha sido bloqueada por 15 minutos.';
-                        } else { $error = 'Usuario/cédula o contraseña incorrectos'; }
+                        } else { 
+                            $error = 'Usuario/cédula o contraseña incorrectos'; 
+                        }
                     }
                 }
-            } catch (PDOException $e) { $error = 'Error del sistema.'; }
+            } catch (PDOException $e) { 
+                error_log("Error en login: " . $e->getMessage());
+                $error = 'Error del sistema.'; 
+            }
         }
     }
 }
 
-// RECUPERACIÓN
+// RECUPERACIÓN DE CONTRASEÑA
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['recovery'])) {
     $email = sanitize($_POST['email'] ?? '');
     if (empty($email)) { $error = 'Por favor ingrese su email'; }
@@ -97,9 +111,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['recovery'])) {
                     $updateStmt = $db->prepare("UPDATE usuarios SET token_recuperacion = ?, token_expiracion = ? WHERE email = ?");
                     $updateStmt->execute([$token, $expiracion, $email]);
                     $reset_link = APP_URL . "/reset_password.php?token=$token";
-                    // En un sistema real esto se envía por correo. Para la demo, mostramos el enlace.
                     $success = "Se ha generado un enlace de recuperación.<br><small>Enlace: <a href='$reset_link'>$reset_link</a></small>";
-                } else { $error = 'No existe una cuenta activa con ese email'; }
+                } else { 
+                    $error = 'No existe una cuenta activa con ese email'; 
+                }
             } catch (PDOException $e) { $error = 'Error al procesar la solicitud'; }
         }
     }
@@ -160,7 +175,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['recovery'])) {
                 </div>
                 
                 <button type="submit" class="btn btn-primary btn-block"><i class="fas fa-sign-in-alt"></i> Iniciar Sesión</button>
-               
             </form>
             <div class="login-options">
                 <a href="?action=recovery" class="option-btn recovery"><i class="fas fa-key"></i> ¿Olvidaste tu Contraseña?</a>
