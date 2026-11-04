@@ -36,6 +36,11 @@ La institución carecía de un sistema centralizado. Los datos se perdían entre
 *   **Servidor Local:** XAMPP (Apache).
 *   **Librerías Externas:** Composer para la gestión de dependencias (DomPDF).
 *   **Frontend:** HTML5, CSS3, JavaScript (Vanilla) e íconos de FontAwesome.
+*   ## 🚀 Estado Actual del Proyecto
+✅ **¡Implementado en Producción!** 
+El sistema SIGEB-G fue presentado exitosamente en la Expoferia de Proyectos Socio-Tecnológicos de la UPTAMCA y **aprobado para su implementación inmediata** en la U.E.N. "Guarenas". 
+
+Actualmente el sistema se encuentra operativo en la oficina de Control de Estudios, sustituyendo completamente el uso de hojas de cálculo manuales y garantizando la integridad de la memoria académica de cientos de estudiantes.D
 
 ## ⚙️ Instalación y Despliegue Local
 
