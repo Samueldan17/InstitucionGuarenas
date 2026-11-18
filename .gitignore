@@ -1,5 +1,6 @@
 /vendor/
 node_modules/
 .env
+config.local.php
 *.log
 /cache/

@@ -1,6 +1,8 @@
 <?php
 // ajax/cargar_secciones.php - Carga dinámica de secciones
-require_once '../config.php';
+require_once __DIR__ . '/../config.php';
+
+requireApiRole(['admin', 'docente', 'secretario']);
 
 // Verificar que sea una petición AJAX y tenga los parámetros necesarios
 if ($_SERVER['REQUEST_METHOD'] !== 'GET' || !isset($_GET['grado_id'])) {

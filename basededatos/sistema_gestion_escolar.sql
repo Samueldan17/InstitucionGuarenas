@@ -1,261 +1,107 @@
--- phpMyAdmin SQL Dump
--- version 5.2.1
--- https://www.phpmyadmin.net/
---
--- Servidor: 127.0.0.1
--- Tiempo de generación: 25-07-2026
--- Versión del servidor: 10.4.32-MariaDB
--- Versión de PHP: 8.2.12
+-- ============================================
+-- RESPALDO SIGEB-G (DATOS DE DEMOSTRACIÓN)
+-- Esquema actual + datos sintéticos, sin información personal real.
+-- Fecha: 19/11/2026 00:58:10
+-- ============================================
 
 SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
-START TRANSACTION;
 SET time_zone = "+00:00";
+SET NAMES utf8mb4;
+SET FOREIGN_KEY_CHECKS = 0;
 
-/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
-/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
-/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
-/*!40101 SET NAMES utf8mb4 */;
-
---
--- Base de datos: `sistema_gestion_escolar`
---
 DROP DATABASE IF EXISTS `sistema_gestion_escolar`;
 CREATE DATABASE IF NOT EXISTS `sistema_gestion_escolar` CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
 USE `sistema_gestion_escolar`;
 
--- --------------------------------------------------------
+-- --------------------------------------------
+-- Estructura de tabla `configuracion`
+-- --------------------------------------------
+DROP TABLE IF EXISTS `configuracion`;
+CREATE TABLE `configuracion` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `clave` varchar(100) NOT NULL,
+  `valor` text DEFAULT NULL,
+  `fecha_actualizacion` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `clave` (`clave`)
+) ENGINE=InnoDB AUTO_INCREMENT=16 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
---
--- Estructura de tabla para la tabla `estudiantes`
---
+-- Datos de `configuracion` (4 filas)
+INSERT INTO `configuracion` (`id`, `clave`, `valor`, `fecha_actualizacion`) VALUES ('1', 'ultimo_respaldo', '2026-11-19 00:53:09', '2026-11-18 19:53:09');
+INSERT INTO `configuracion` (`id`, `clave`, `valor`, `fecha_actualizacion`) VALUES ('2', 'responsable_sistema', 'Departamento de Evaluación y Control de Estudios', '2026-10-11 13:03:50');
+INSERT INTO `configuracion` (`id`, `clave`, `valor`, `fecha_actualizacion`) VALUES ('3', 'anio_escolar_activo', '2025-2026', '2026-10-11 13:03:50');
+INSERT INTO `configuracion` (`id`, `clave`, `valor`, `fecha_actualizacion`) VALUES ('5', 'lapso_1_cerrado', '0', '2026-11-03 17:03:23');
 
+
+-- --------------------------------------------
+-- Estructura de tabla `estudiantes`
+-- --------------------------------------------
+DROP TABLE IF EXISTS `estudiantes`;
 CREATE TABLE `estudiantes` (
-  `id` int(11) NOT NULL,
+  `id` int(11) NOT NULL AUTO_INCREMENT,
   `cedula` varchar(20) NOT NULL,
   `nombres` varchar(100) NOT NULL,
   `apellidos` varchar(100) NOT NULL,
+  `email` varchar(100) DEFAULT NULL,
+  `usuario_id` int(11) DEFAULT NULL,
   `fecha_nacimiento` date DEFAULT NULL,
   `genero` enum('M','F') DEFAULT NULL,
+  `nacionalidad` varchar(50) DEFAULT 'Venezolana',
+  `lugar_nacimiento` varchar(150) DEFAULT NULL,
   `direccion` text DEFAULT NULL,
   `telefono_contacto` varchar(20) DEFAULT NULL,
   `nombre_representante` varchar(100) DEFAULT NULL,
+  `cedula_representante` varchar(20) DEFAULT NULL,
   `telefono_representante` varchar(20) DEFAULT NULL,
+  `email_representante` varchar(100) DEFAULT NULL,
+  `parentesco` varchar(50) DEFAULT NULL,
+  `procedencia` varchar(200) DEFAULT NULL,
   `seccion_id` int(11) DEFAULT NULL,
   `fecha_inscripcion` date DEFAULT NULL,
+  `fecha_retiro` date DEFAULT NULL,
   `estado` enum('activo','inactivo','graduado') DEFAULT 'activo',
   `fecha_creacion` timestamp NOT NULL DEFAULT current_timestamp(),
-  `fecha_actualizacion` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_spanish2_ci;
+  `fecha_actualizacion` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `fk_estudiante_usuario` (`usuario_id`),
+  CONSTRAINT `fk_estudiante_usuario` FOREIGN KEY (`usuario_id`) REFERENCES `usuarios` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB AUTO_INCREMENT=8 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_spanish2_ci;
 
---
--- Volcado de datos para la tabla `estudiantes`
---
+-- Datos de `estudiantes` (6 filas)
+INSERT INTO `estudiantes` (`id`, `cedula`, `nombres`, `apellidos`, `email`, `usuario_id`, `fecha_nacimiento`, `genero`, `nacionalidad`, `lugar_nacimiento`, `direccion`, `telefono_contacto`, `nombre_representante`, `cedula_representante`, `telefono_representante`, `email_representante`, `parentesco`, `procedencia`, `seccion_id`, `fecha_inscripcion`, `fecha_retiro`, `estado`, `fecha_creacion`, `fecha_actualizacion`) VALUES ('1', 'V-80000001', 'Estudiante', 'Demo 1', 'estudiante1@example.local', NULL, '2010-01-01', 'F', 'Venezolana', 'Los Teques', 'Dirección de prueba', '0412-0000001', 'Representante Demo', 'V-70000001', '0414-0000001', 'representante1@example.local', NULL, 'Escuela de prueba', '1', '2024-01-15', NULL, 'activo', '2026-07-25 12:22:44', '2026-11-18 19:53:56');
+INSERT INTO `estudiantes` (`id`, `cedula`, `nombres`, `apellidos`, `email`, `usuario_id`, `fecha_nacimiento`, `genero`, `nacionalidad`, `lugar_nacimiento`, `direccion`, `telefono_contacto`, `nombre_representante`, `cedula_representante`, `telefono_representante`, `email_representante`, `parentesco`, `procedencia`, `seccion_id`, `fecha_inscripcion`, `fecha_retiro`, `estado`, `fecha_creacion`, `fecha_actualizacion`) VALUES ('2', 'V-80000002', 'Estudiante', 'Demo 2', 'estudiante2@example.local', '5', '2010-01-01', 'M', 'Venezolana', 'Los Teques', 'Dirección de prueba', '0412-0000002', 'Representante Demo', 'V-70000002', '0414-0000002', 'representante2@example.local', '', 'Escuela de prueba', '1', '2024-01-15', NULL, 'activo', '2026-10-13 20:05:42', '2026-11-02 14:49:17');
+INSERT INTO `estudiantes` (`id`, `cedula`, `nombres`, `apellidos`, `email`, `usuario_id`, `fecha_nacimiento`, `genero`, `nacionalidad`, `lugar_nacimiento`, `direccion`, `telefono_contacto`, `nombre_representante`, `cedula_representante`, `telefono_representante`, `email_representante`, `parentesco`, `procedencia`, `seccion_id`, `fecha_inscripcion`, `fecha_retiro`, `estado`, `fecha_creacion`, `fecha_actualizacion`) VALUES ('3', 'V-80000003', 'Estudiante', 'Demo 3', 'estudiante3@example.local', NULL, '2010-01-01', 'F', 'Venezolana', 'Los Teques', 'Dirección de prueba', '0412-0000003', 'Representante Demo', 'V-70000003', '0414-0000003', 'representante3@example.local', NULL, 'Escuela de prueba', '1', '2024-01-15', NULL, 'activo', '2026-07-25 12:22:44', '2026-07-25 12:22:44');
+INSERT INTO `estudiantes` (`id`, `cedula`, `nombres`, `apellidos`, `email`, `usuario_id`, `fecha_nacimiento`, `genero`, `nacionalidad`, `lugar_nacimiento`, `direccion`, `telefono_contacto`, `nombre_representante`, `cedula_representante`, `telefono_representante`, `email_representante`, `parentesco`, `procedencia`, `seccion_id`, `fecha_inscripcion`, `fecha_retiro`, `estado`, `fecha_creacion`, `fecha_actualizacion`) VALUES ('4', 'V-80000004', 'Estudiante', 'Demo 4', 'estudiante4@example.local', NULL, '2010-01-01', 'M', 'Venezolana', 'Los Teques', 'Dirección de prueba', '0412-0000004', 'Representante Demo', 'V-70000004', '0414-0000004', 'representante4@example.local', NULL, 'Escuela de prueba', '2', '2024-01-15', NULL, 'activo', '2026-07-25 12:22:44', '2026-07-25 12:22:44');
+INSERT INTO `estudiantes` (`id`, `cedula`, `nombres`, `apellidos`, `email`, `usuario_id`, `fecha_nacimiento`, `genero`, `nacionalidad`, `lugar_nacimiento`, `direccion`, `telefono_contacto`, `nombre_representante`, `cedula_representante`, `telefono_representante`, `email_representante`, `parentesco`, `procedencia`, `seccion_id`, `fecha_inscripcion`, `fecha_retiro`, `estado`, `fecha_creacion`, `fecha_actualizacion`) VALUES ('5', 'V-80000005', 'Estudiante', 'Demo 5', 'estudiante5@example.local', '8', '2010-01-01', 'F', 'Venezolana', 'Los Teques', 'Dirección de prueba', '0412-0000005', 'Representante Demo', 'V-70000005', '0414-0000005', 'representante5@example.local', NULL, 'Escuela de prueba', '2', '2024-01-15', NULL, 'activo', '2026-07-25 12:22:44', '2026-10-15 15:11:20');
+INSERT INTO `estudiantes` (`id`, `cedula`, `nombres`, `apellidos`, `email`, `usuario_id`, `fecha_nacimiento`, `genero`, `nacionalidad`, `lugar_nacimiento`, `direccion`, `telefono_contacto`, `nombre_representante`, `cedula_representante`, `telefono_representante`, `email_representante`, `parentesco`, `procedencia`, `seccion_id`, `fecha_inscripcion`, `fecha_retiro`, `estado`, `fecha_creacion`, `fecha_actualizacion`) VALUES ('7', 'V-80000007', 'Estudiante', 'Demo 7', 'estudiante7@example.local', '16', '2010-01-01', 'M', 'Venezolana', 'Los Teques', 'Dirección de prueba', '0412-0000007', 'Representante Demo', 'V-70000007', '0414-0000007', 'representante7@example.local', 'Madre', 'Escuela de prueba', '1', '2026-11-02', NULL, 'activo', '2026-11-02 12:29:35', '2026-11-02 12:29:35');
 
-INSERT INTO `estudiantes` (`id`, `cedula`, `nombres`, `apellidos`, `fecha_nacimiento`, `genero`, `direccion`, `telefono_contacto`, `nombre_representante`, `telefono_representante`, `seccion_id`, `fecha_inscripcion`, `estado`) VALUES
-(1, 'V-28987654', 'María Gabriela', 'Pérez López', '2010-05-15', 'F', 'Urbanización El Rincón, Calle 5, Casa #12, Los Teques', '0412-1234567', 'Carlos Pérez', '0414-1112233', 1, '2024-01-15', 'activo'),
-(2, 'V-28765432', 'Carlos José', 'González Rodríguez', '2009-08-22', 'M', 'Sector La Linea, Av. Principal, Edificio Los Pinos, Los Teques', '0416-7654321', 'Marta Rodríguez', '0424-4445566', 1, '2024-01-15', 'activo'),
-(3, 'V-28654321', 'Ana Isabel', 'Martínez Blanco', '2010-02-10', 'F', 'Urbanización San Antonio, Calle Los Jardines, Residencia Martínez', '0412-8889999', 'Roberto Martínez', '0416-7778888', 1, '2024-01-15', 'activo'),
-(4, 'V-28543219', 'José Luis', 'Ramírez Silva', '2009-11-30', 'M', 'Sector Altamira, Calle Principal, Quinta Ramírez', '0426-5554444', 'Luisa Silva', '0412-3332222', 2, '2024-01-15', 'activo'),
-(5, 'V-28432198', 'Laura Valentina', 'Hernández Castro', '2010-03-25', 'F', 'Urbanización La Paz, Calle Los Almendros, Casa Hernandez', '0414-6667777', 'Pedro Hernández', '0424-9990000', 2, '2024-01-15', 'activo');
 
--- --------------------------------------------------------
-
---
--- Estructura de tabla para la tabla `grados`
---
-
+-- --------------------------------------------
+-- Estructura de tabla `grados`
+-- --------------------------------------------
+DROP TABLE IF EXISTS `grados`;
 CREATE TABLE `grados` (
   `id` int(11) NOT NULL,
   `nombre` varchar(50) NOT NULL,
   `nivel` varchar(20) DEFAULT NULL,
+  `modalidad` enum('Media General','Media Técnica') DEFAULT 'Media General',
   `orden` int(11) DEFAULT NULL,
   `activo` tinyint(1) DEFAULT 1,
   `fecha_creacion` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_spanish2_ci;
 
---
--- Volcado de datos para la tabla `grados`
---
+-- Datos de `grados` (5 filas)
+INSERT INTO `grados` (`id`, `nombre`, `nivel`, `modalidad`, `orden`, `activo`, `fecha_creacion`) VALUES ('1', '1er Año', 'Media General', 'Media General', '1', '1', '2026-07-25 12:22:44');
+INSERT INTO `grados` (`id`, `nombre`, `nivel`, `modalidad`, `orden`, `activo`, `fecha_creacion`) VALUES ('2', '2do Año', 'Media General', 'Media General', '2', '1', '2026-07-25 12:22:44');
+INSERT INTO `grados` (`id`, `nombre`, `nivel`, `modalidad`, `orden`, `activo`, `fecha_creacion`) VALUES ('3', '3er Año', 'Media General', 'Media General', '3', '1', '2026-07-25 12:22:44');
+INSERT INTO `grados` (`id`, `nombre`, `nivel`, `modalidad`, `orden`, `activo`, `fecha_creacion`) VALUES ('4', '4to Año', 'Media General', 'Media General', '4', '1', '2026-07-25 12:22:44');
+INSERT INTO `grados` (`id`, `nombre`, `nivel`, `modalidad`, `orden`, `activo`, `fecha_creacion`) VALUES ('5', '5to Año', 'Media General', 'Media General', '5', '1', '2026-07-25 12:22:44');
 
-INSERT INTO `grados` (`id`, `nombre`, `nivel`, `orden`, `activo`) VALUES
-(1, '1er Año', 'Media General', 1, 1),
-(2, '2do Año', 'Media General', 2, 1),
-(3, '3er Año', 'Media General', 3, 1),
-(4, '4to Año', 'Media General', 4, 1),
-(5, '5to Año', 'Media General', 5, 1);
 
--- --------------------------------------------------------
-
---
--- Estructura de tabla para la tabla `materias`
---
-
-CREATE TABLE `materias` (
-  `id` int(11) NOT NULL,
-  `codigo` varchar(20) NOT NULL,
-  `nombre` varchar(100) NOT NULL,
-  `area` varchar(50) DEFAULT NULL,
-  `descripcion` text DEFAULT NULL,
-  `creditos` int(11) DEFAULT 1,
-  `activo` tinyint(1) DEFAULT 1,
-  `fecha_creacion` timestamp NOT NULL DEFAULT current_timestamp(),
-  `fecha_actualizacion` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_spanish2_ci;
-
---
--- Volcado de datos para la tabla `materias`
---
-
-INSERT INTO `materias` (`id`, `codigo`, `nombre`, `area`, `descripcion`, `creditos`, `activo`) VALUES
-(1, 'MAT-001', 'Matemáticas', 'Matemáticas', 'Álgebra, geometría y cálculo básico para educación media', 1, 1),
-(2, 'LEN-001', 'Lengua y Literatura', 'Lengua', 'Comprensión lectora, redacción y literatura venezolana', 1, 1),
-(3, 'CIE-001', 'Ciencias Naturales', 'Ciencias', 'Biología, química y física aplicada al entorno', 1, 1),
-(4, 'SOC-001', 'Ciencias Sociales', 'Sociales', 'Historia universal, de Venezuela y geografía', 1, 1),
-(5, 'ING-001', 'Inglés', 'Idiomas', 'Inglés básico e intermedio para comunicación', 1, 1),
-(6, 'EDF-001', 'Educación Física', 'Educación Física', 'Desarrollo físico, deportes y salud integral', 1, 1),
-(7, 'ART-001', 'Arte y Cultura', 'Arte', 'Expresión artística, música y cultura venezolana', 1, 1),
-(8, 'TEC-001', 'Tecnología', 'Tecnología', 'Informática básica y tecnología educativa', 1, 1);
-
--- --------------------------------------------------------
-
---
--- Estructura de tabla para la tabla `notas`
---   *** NUEVO CAMPO: recuperacion ***
---
-
-CREATE TABLE `notas` (
-  `id` int(11) NOT NULL,
-  `estudiante_id` int(11) DEFAULT NULL,
-  `seccion_materia_id` int(11) DEFAULT NULL,
-  `evaluacion1` decimal(4,2) DEFAULT 0.00,
-  `evaluacion2` decimal(4,2) DEFAULT 0.00,
-  `evaluacion3` decimal(4,2) DEFAULT 0.00,
-  `proyecto` decimal(4,2) DEFAULT 0.00,
-  `participacion` decimal(4,2) DEFAULT 0.00,
-  `promedio` decimal(4,2) DEFAULT 0.00,
-  `recuperacion` decimal(4,2) DEFAULT NULL,   -- <-- CAMPO AGREGADO
-  `lapso` enum('1','2','3') DEFAULT '1',
-  `anio_escolar` year(4) DEFAULT NULL,
-  `observaciones` text DEFAULT NULL,
-  `fecha_registro` timestamp NOT NULL DEFAULT current_timestamp(),
-  `fecha_actualizacion` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_spanish2_ci;
-
---
--- Volcado de datos para la tabla `notas` (ejemplo con recuperacion)
---
-
-INSERT INTO `notas` (`id`, `estudiante_id`, `seccion_materia_id`, `evaluacion1`, `evaluacion2`, `evaluacion3`, `proyecto`, `participacion`, `promedio`, `recuperacion`, `lapso`, `anio_escolar`, `observaciones`) VALUES
-(1, 1, 1, 18.00, 16.00, 17.00, 19.00, 18.00, 17.00, NULL, '1', 2024, 'Excelente rendimiento en ejercicios prácticos'),
-(2, 1, 2, 16.00, 15.00, 17.00, 18.00, 16.00, 16.00, NULL, '1', 2024, 'Buena comprensión lectora'),
-(3, 1, 3, 17.00, 18.00, 16.00, 19.00, 17.00, 17.00, NULL, '1', 2024, 'Destacado en experimentos'),
-(4, 2, 1, 15.00, 14.00, 16.00, 17.00, 15.00, 15.00, 18.00, '1', 2024, 'Requiere práctica adicional - Recuperación aplicada'),
-(5, 2, 2, 17.00, 16.00, 18.00, 16.00, 17.00, 17.00, NULL, '1', 2024, 'Excelente en expresión oral'),
-(6, 2, 3, 16.00, 15.00, 17.00, 18.00, 16.00, 16.00, NULL, '1', 2024, 'Buen desempeño general'),
-(7, 3, 1, 19.00, 18.00, 20.00, 19.00, 18.00, 19.00, NULL, '1', 2024, 'Excelente, muy destacado'),
-(8, 3, 2, 18.00, 17.00, 19.00, 18.00, 17.00, 18.00, NULL, '1', 2024, 'Creativo en redacciones'),
-(9, 3, 3, 17.00, 19.00, 18.00, 20.00, 18.00, 18.00, NULL, '1', 2024, 'Muy bueno en laboratorio');
-
--- --------------------------------------------------------
-
---
--- Estructura de tabla para la tabla `secciones`
---
-
-CREATE TABLE `secciones` (
-  `id` int(11) NOT NULL,
-  `grado_id` int(11) DEFAULT NULL,
-  `letra` varchar(5) NOT NULL,
-  `turno` enum('mañana','tarde') DEFAULT 'mañana',
-  `capacidad` int(11) DEFAULT 30,
-  `docente_guia_id` int(11) DEFAULT NULL,
-  `aula` varchar(20) DEFAULT NULL,
-  `activo` tinyint(1) DEFAULT 1,
-  `fecha_creacion` timestamp NOT NULL DEFAULT current_timestamp(),
-  `fecha_actualizacion` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_spanish2_ci;
-
---
--- Volcado de datos para la tabla `secciones`
---
-
-INSERT INTO `secciones` (`id`, `grado_id`, `letra`, `turno`, `capacidad`, `docente_guia_id`, `aula`, `activo`) VALUES
-(1, 1, 'A', 'mañana', 30, 2, 'Aula 101', 1),
-(2, 1, 'B', 'tarde', 25, 3, 'Aula 102', 1),
-(3, 2, 'A', 'mañana', 28, 2, 'Aula 201', 1),
-(4, 2, 'B', 'tarde', 26, 3, 'Aula 202', 1),
-(5, 3, 'A', 'mañana', 30, 2, 'Aula 301', 1);
-
--- --------------------------------------------------------
-
---
--- Estructura de tabla para la tabla `seccion_materias`
---
-
-CREATE TABLE `seccion_materias` (
-  `id` int(11) NOT NULL,
-  `seccion_id` int(11) DEFAULT NULL,
-  `materia_id` int(11) DEFAULT NULL,
-  `docente_id` int(11) DEFAULT NULL,
-  `horario` varchar(50) DEFAULT NULL,
-  `lapso` enum('1','2','3') DEFAULT '1',
-  `anio_escolar` year(4) DEFAULT NULL,
-  `fecha_creacion` timestamp NOT NULL DEFAULT current_timestamp()
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_spanish2_ci;
-
---
--- Volcado de datos para la tabla `seccion_materias`
---
-
-INSERT INTO `seccion_materias` (`id`, `seccion_id`, `materia_id`, `docente_id`, `horario`, `lapso`, `anio_escolar`) VALUES
-(1, 1, 1, 2, 'Lunes 7:00-8:30', '1', 2024),
-(2, 1, 2, 3, 'Martes 7:00-8:30', '1', 2024),
-(3, 1, 3, 2, 'Miércoles 7:00-8:30', '1', 2024),
-(4, 1, 4, 3, 'Jueves 7:00-8:30', '1', 2024),
-(5, 1, 5, 2, 'Viernes 7:00-8:30', '1', 2024),
-(6, 2, 1, 3, 'Lunes 13:00-14:30', '1', 2024),
-(7, 2, 2, 2, 'Martes 13:00-14:30', '1', 2024),
-(8, 2, 3, 3, 'Miércoles 13:00-14:30', '1', 2024);
-
--- --------------------------------------------------------
-
---
--- Estructura de tabla para la tabla `usuarios`
---
-
-CREATE TABLE `usuarios` (
-  `id` int(11) NOT NULL,
-  `username` varchar(50) DEFAULT NULL,
-  `cedula` varchar(20) NOT NULL,
-  `nombres` varchar(100) NOT NULL,
-  `apellidos` varchar(100) NOT NULL,
-  `email` varchar(100) DEFAULT NULL,
-  `telefono` varchar(20) DEFAULT NULL,
-  `rol` enum('admin','docente','secretario') DEFAULT 'docente',
-  `password` varchar(255) NOT NULL,
-  `activo` tinyint(1) DEFAULT 1,
-  `fecha_creacion` timestamp NOT NULL DEFAULT current_timestamp(),
-  `ultimo_acceso` timestamp NULL DEFAULT NULL,
-  `token_recuperacion` varchar(255) DEFAULT NULL,
-  `token_expiracion` datetime DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_spanish2_ci;
-
---
--- Volcado de datos para la tabla `usuarios`
---
-
-INSERT INTO `usuarios` (`id`, `username`, `cedula`, `nombres`, `apellidos`, `email`, `telefono`, `rol`, `password`, `activo`, `ultimo_acceso`) VALUES
-(1, 'admin', 'V-12345678', 'Administrador', 'del Sistema', 'admin@uenguarenas.edu.ve', '0412-1234567', 'admin', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 1, NULL),
-(2, 'jcastro', 'V-23456789', 'Jhony', 'Castro', 'jcastro@uenguarenas.edu.ve', '0414-2345678', 'docente', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 1, NULL),
-(3, 'mrodriguez', 'V-34567890', 'María', 'Rodríguez', 'mrodriguez@uenguarenas.edu.ve', '0416-3456789', 'docente', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 1, NULL),
-(4, 'lgonzalez', 'V-45678901', 'Luis', 'González', 'lgonzalez@uenguarenas.edu.ve', '0424-4567890', 'docente', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 1, NULL);
-
--- --------------------------------------------------------
-
---
--- TABLA NUEVA: login_attempts (control de intentos fallidos)
---
-
+-- --------------------------------------------
+-- Estructura de tabla `login_attempts`
+-- --------------------------------------------
+DROP TABLE IF EXISTS `login_attempts`;
 CREATE TABLE `login_attempts` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `ip` varchar(45) NOT NULL,
@@ -265,14 +111,13 @@ CREATE TABLE `login_attempts` (
   `bloqueado_hasta` datetime DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `ip` (`ip`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB AUTO_INCREMENT=42 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- --------------------------------------------------------
 
---
--- TABLA NUEVA: logs (auditoría)
---
-
+-- --------------------------------------------
+-- Estructura de tabla `logs`
+-- --------------------------------------------
+DROP TABLE IF EXISTS `logs`;
 CREATE TABLE `logs` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `usuario_id` int(11) DEFAULT NULL,
@@ -285,160 +130,186 @@ CREATE TABLE `logs` (
   PRIMARY KEY (`id`),
   KEY `usuario_id` (`usuario_id`),
   CONSTRAINT `logs_ibfk_1` FOREIGN KEY (`usuario_id`) REFERENCES `usuarios` (`id`) ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB AUTO_INCREMENT=152 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- --------------------------------------------------------
 
---
--- Índices para tablas volcadas
---
+-- --------------------------------------------
+-- Estructura de tabla `materias`
+-- --------------------------------------------
+DROP TABLE IF EXISTS `materias`;
+CREATE TABLE `materias` (
+  `id` int(11) NOT NULL,
+  `codigo` varchar(20) NOT NULL,
+  `nombre` varchar(100) NOT NULL,
+  `area` varchar(50) DEFAULT NULL,
+  `descripcion` text DEFAULT NULL,
+  `horas_semanales` int(11) DEFAULT 1,
+  `activo` tinyint(1) DEFAULT 1,
+  `fecha_creacion` timestamp NOT NULL DEFAULT current_timestamp(),
+  `fecha_actualizacion` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_spanish2_ci;
 
---
--- Indices de la tabla `estudiantes`
---
-ALTER TABLE `estudiantes`
-  ADD PRIMARY KEY (`id`),
-  ADD UNIQUE KEY `cedula` (`cedula`),
-  ADD KEY `seccion_id` (`seccion_id`),
-  ADD KEY `idx_estado` (`estado`),
-  ADD KEY `idx_seccion_estado` (`seccion_id`,`estado`);
+-- Datos de `materias` (9 filas)
+INSERT INTO `materias` (`id`, `codigo`, `nombre`, `area`, `descripcion`, `horas_semanales`, `activo`, `fecha_creacion`, `fecha_actualizacion`) VALUES ('0', 'LEN-2026-001', 'psicologia', 'Lengua y Literatura', '', '3', '1', '2026-11-02 14:29:15', '2026-11-02 14:29:15');
+INSERT INTO `materias` (`id`, `codigo`, `nombre`, `area`, `descripcion`, `horas_semanales`, `activo`, `fecha_creacion`, `fecha_actualizacion`) VALUES ('1', 'MAT-001', 'Matemáticas', 'Matemáticas', 'Álgebra, geometría y cálculo básico para educación media', '1', '1', '2026-07-25 12:22:44', '2026-07-25 12:22:44');
+INSERT INTO `materias` (`id`, `codigo`, `nombre`, `area`, `descripcion`, `horas_semanales`, `activo`, `fecha_creacion`, `fecha_actualizacion`) VALUES ('2', 'LEN-001', 'Lengua y Literatura', 'Lengua', 'Comprensión lectora, redacción y literatura venezolana', '1', '1', '2026-07-25 12:22:44', '2026-07-25 12:22:44');
+INSERT INTO `materias` (`id`, `codigo`, `nombre`, `area`, `descripcion`, `horas_semanales`, `activo`, `fecha_creacion`, `fecha_actualizacion`) VALUES ('3', 'CIE-001', 'Ciencias Naturales', 'Ciencias', 'Biología, química y física aplicada al entorno', '1', '1', '2026-07-25 12:22:44', '2026-07-25 12:22:44');
+INSERT INTO `materias` (`id`, `codigo`, `nombre`, `area`, `descripcion`, `horas_semanales`, `activo`, `fecha_creacion`, `fecha_actualizacion`) VALUES ('4', 'SOC-001', 'Ciencias Sociales', 'Sociales', 'Historia universal, de Venezuela y geografía', '1', '1', '2026-07-25 12:22:44', '2026-07-25 12:22:44');
+INSERT INTO `materias` (`id`, `codigo`, `nombre`, `area`, `descripcion`, `horas_semanales`, `activo`, `fecha_creacion`, `fecha_actualizacion`) VALUES ('5', 'ING-001', 'Inglés', 'Idiomas', 'Inglés básico e intermedio para comunicación', '1', '1', '2026-07-25 12:22:44', '2026-07-25 12:22:44');
+INSERT INTO `materias` (`id`, `codigo`, `nombre`, `area`, `descripcion`, `horas_semanales`, `activo`, `fecha_creacion`, `fecha_actualizacion`) VALUES ('6', 'EDF-001', 'Educación Física', 'Educación Física', 'Desarrollo físico, deportes y salud integral', '1', '1', '2026-07-25 12:22:44', '2026-07-25 12:22:44');
+INSERT INTO `materias` (`id`, `codigo`, `nombre`, `area`, `descripcion`, `horas_semanales`, `activo`, `fecha_creacion`, `fecha_actualizacion`) VALUES ('7', 'ART-001', 'Arte y Cultura', 'Arte', 'Expresión artística, música y cultura venezolana', '1', '1', '2026-07-25 12:22:44', '2026-07-25 12:22:44');
+INSERT INTO `materias` (`id`, `codigo`, `nombre`, `area`, `descripcion`, `horas_semanales`, `activo`, `fecha_creacion`, `fecha_actualizacion`) VALUES ('8', 'TEC-001', 'Tecnología', 'Tecnología', 'Informática básica y tecnología educativa', '1', '1', '2026-07-25 12:22:44', '2026-07-25 12:22:44');
 
---
--- Indices de la tabla `grados`
---
-ALTER TABLE `grados`
-  ADD PRIMARY KEY (`id`),
-  ADD KEY `idx_activo` (`activo`);
 
---
--- Indices de la tabla `materias`
---
-ALTER TABLE `materias`
-  ADD PRIMARY KEY (`id`),
-  ADD UNIQUE KEY `codigo` (`codigo`),
-  ADD KEY `idx_area` (`area`),
-  ADD KEY `idx_activo` (`activo`);
+-- --------------------------------------------
+-- Estructura de tabla `notas`
+-- --------------------------------------------
+DROP TABLE IF EXISTS `notas`;
+CREATE TABLE `notas` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `estudiante_id` int(11) NOT NULL,
+  `seccion_materia_id` int(11) NOT NULL,
+  `lapso` tinyint(1) NOT NULL COMMENT '1, 2, 3',
+  `nota` decimal(4,2) DEFAULT NULL,
+  `es_recuperacion` tinyint(1) DEFAULT 0,
+  `anio_escolar` year(4) NOT NULL,
+  `observaciones` text DEFAULT NULL,
+  `fecha_registro` timestamp NOT NULL DEFAULT current_timestamp(),
+  `fecha_actualizacion` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `unique_nota` (`estudiante_id`,`seccion_materia_id`,`lapso`,`es_recuperacion`,`anio_escolar`),
+  KEY `idx_estudiante` (`estudiante_id`),
+  KEY `idx_seccion_materia` (`seccion_materia_id`),
+  CONSTRAINT `fk_notas_estudiante` FOREIGN KEY (`estudiante_id`) REFERENCES `estudiantes` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_notas_seccion_materia` FOREIGN KEY (`seccion_materia_id`) REFERENCES `seccion_materias` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB AUTO_INCREMENT=21 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
---
--- Indices de la tabla `notas`
---
-ALTER TABLE `notas`
-  ADD PRIMARY KEY (`id`),
-  ADD KEY `estudiante_id` (`estudiante_id`),
-  ADD KEY `seccion_materia_id` (`seccion_materia_id`),
-  ADD KEY `idx_lapso_anio` (`lapso`,`anio_escolar`),
-  ADD KEY `idx_estudiante_lapso` (`estudiante_id`,`lapso`,`anio_escolar`);
+-- Datos de `notas` (4 filas)
+INSERT INTO `notas` (`id`, `estudiante_id`, `seccion_materia_id`, `lapso`, `nota`, `es_recuperacion`, `anio_escolar`, `observaciones`, `fecha_registro`, `fecha_actualizacion`) VALUES ('7', '5', '8', '1', '16.00', '0', '2025', NULL, '2026-10-15 15:13:00', '2026-10-15 15:13:00');
+INSERT INTO `notas` (`id`, `estudiante_id`, `seccion_materia_id`, `lapso`, `nota`, `es_recuperacion`, `anio_escolar`, `observaciones`, `fecha_registro`, `fecha_actualizacion`) VALUES ('12', '2', '2', '1', '15.00', '0', '2025', NULL, '2026-10-15 17:39:43', '2026-10-15 17:39:43');
+INSERT INTO `notas` (`id`, `estudiante_id`, `seccion_materia_id`, `lapso`, `nota`, `es_recuperacion`, `anio_escolar`, `observaciones`, `fecha_registro`, `fecha_actualizacion`) VALUES ('18', '2', '9', '1', '16.00', '0', '2025', NULL, '2026-11-01 17:41:51', '2026-11-01 17:41:51');
+INSERT INTO `notas` (`id`, `estudiante_id`, `seccion_materia_id`, `lapso`, `nota`, `es_recuperacion`, `anio_escolar`, `observaciones`, `fecha_registro`, `fecha_actualizacion`) VALUES ('20', '3', '9', '1', '12.00', '0', '2025', NULL, '2026-11-02 14:31:15', '2026-11-02 14:31:15');
 
---
--- Indices de la tabla `secciones`
---
-ALTER TABLE `secciones`
-  ADD PRIMARY KEY (`id`),
-  ADD KEY `grado_id` (`grado_id`),
-  ADD KEY `docente_guia_id` (`docente_guia_id`),
-  ADD KEY `idx_activo` (`activo`),
-  ADD KEY `idx_grado_activo` (`grado_id`,`activo`);
 
---
--- Indices de la tabla `seccion_materias`
---
-ALTER TABLE `seccion_materias`
-  ADD PRIMARY KEY (`id`),
-  ADD KEY `seccion_id` (`seccion_id`),
-  ADD KEY `materia_id` (`materia_id`),
-  ADD KEY `docente_id` (`docente_id`),
-  ADD KEY `idx_seccion_materia` (`seccion_id`,`materia_id`);
+-- --------------------------------------------
+-- Estructura de tabla `representantes_estudiantes`
+-- --------------------------------------------
+DROP TABLE IF EXISTS `representantes_estudiantes`;
+CREATE TABLE `representantes_estudiantes` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `representante_id` int(11) NOT NULL,
+  `estudiante_id` int(11) NOT NULL,
+  `parentesco` varchar(50) DEFAULT NULL,
+  `es_principal` tinyint(1) DEFAULT 0,
+  `fecha_creacion` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `unique_relacion` (`representante_id`,`estudiante_id`),
+  KEY `idx_representante` (`representante_id`),
+  KEY `idx_estudiante` (`estudiante_id`),
+  CONSTRAINT `fk_rep_est_estudiante` FOREIGN KEY (`estudiante_id`) REFERENCES `estudiantes` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_rep_est_representante` FOREIGN KEY (`representante_id`) REFERENCES `usuarios` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
---
--- Indices de la tabla `usuarios`
---
-ALTER TABLE `usuarios`
-  ADD PRIMARY KEY (`id`),
-  ADD UNIQUE KEY `username` (`username`),
-  ADD UNIQUE KEY `cedula` (`cedula`),
-  ADD UNIQUE KEY `email` (`email`),
-  ADD KEY `idx_rol_activo` (`rol`,`activo`);
+-- Datos de `representantes_estudiantes` (3 filas)
+INSERT INTO `representantes_estudiantes` (`id`, `representante_id`, `estudiante_id`, `parentesco`, `es_principal`, `fecha_creacion`) VALUES ('7', '17', '7', 'Madre', '1', '2026-11-02 12:29:35');
+INSERT INTO `representantes_estudiantes` (`id`, `representante_id`, `estudiante_id`, `parentesco`, `es_principal`, `fecha_creacion`) VALUES ('8', '9', '2', 'Representante', '1', '2026-11-02 14:41:14');
+INSERT INTO `representantes_estudiantes` (`id`, `representante_id`, `estudiante_id`, `parentesco`, `es_principal`, `fecha_creacion`) VALUES ('9', '17', '2', 'Representante', '1', '2026-11-02 14:49:17');
 
---
--- AUTO_INCREMENT de las tablas volcadas
---
 
---
--- AUTO_INCREMENT de la tabla `estudiantes`
---
-ALTER TABLE `estudiantes`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
+-- --------------------------------------------
+-- Estructura de tabla `seccion_materias`
+-- --------------------------------------------
+DROP TABLE IF EXISTS `seccion_materias`;
+CREATE TABLE `seccion_materias` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `seccion_id` int(11) DEFAULT NULL,
+  `materia_id` int(11) DEFAULT NULL,
+  `docente_id` int(11) DEFAULT NULL,
+  `horario` varchar(50) DEFAULT NULL,
+  `lapso` enum('1','2','3') DEFAULT '1',
+  `anio_escolar` year(4) DEFAULT NULL,
+  `fecha_creacion` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_spanish2_ci;
 
---
--- AUTO_INCREMENT de la tabla `grados`
---
-ALTER TABLE `grados`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
+-- Datos de `seccion_materias` (7 filas)
+INSERT INTO `seccion_materias` (`id`, `seccion_id`, `materia_id`, `docente_id`, `horario`, `lapso`, `anio_escolar`, `fecha_creacion`) VALUES ('2', '1', '2', '3', 'Martes 7:00-8:30', '1', '2025', '2026-07-25 12:22:44');
+INSERT INTO `seccion_materias` (`id`, `seccion_id`, `materia_id`, `docente_id`, `horario`, `lapso`, `anio_escolar`, `fecha_creacion`) VALUES ('4', '1', '4', '3', 'Jueves 7:00-8:30', '1', '2025', '2026-07-25 12:22:44');
+INSERT INTO `seccion_materias` (`id`, `seccion_id`, `materia_id`, `docente_id`, `horario`, `lapso`, `anio_escolar`, `fecha_creacion`) VALUES ('6', '2', '1', '3', 'Lunes 13:00-14:30', '1', '2025', '2026-07-25 12:22:44');
+INSERT INTO `seccion_materias` (`id`, `seccion_id`, `materia_id`, `docente_id`, `horario`, `lapso`, `anio_escolar`, `fecha_creacion`) VALUES ('7', '2', '2', '2', 'Martes 13:00-14:30', '1', '2025', '2026-07-25 12:22:44');
+INSERT INTO `seccion_materias` (`id`, `seccion_id`, `materia_id`, `docente_id`, `horario`, `lapso`, `anio_escolar`, `fecha_creacion`) VALUES ('8', '2', '3', '3', 'Miércoles 13:00-14:30', '1', '2025', '2026-07-25 12:22:44');
+INSERT INTO `seccion_materias` (`id`, `seccion_id`, `materia_id`, `docente_id`, `horario`, `lapso`, `anio_escolar`, `fecha_creacion`) VALUES ('9', '1', '7', '14', NULL, '1', '2025', '2026-11-01 17:38:38');
+INSERT INTO `seccion_materias` (`id`, `seccion_id`, `materia_id`, `docente_id`, `horario`, `lapso`, `anio_escolar`, `fecha_creacion`) VALUES ('10', '1', '0', '12', NULL, '1', '2025', '2026-11-02 14:29:47');
 
---
--- AUTO_INCREMENT de la tabla `materias`
---
-ALTER TABLE `materias`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=9;
 
---
--- AUTO_INCREMENT de la tabla `notas`
---
-ALTER TABLE `notas`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=10;
+-- --------------------------------------------
+-- Estructura de tabla `secciones`
+-- --------------------------------------------
+DROP TABLE IF EXISTS `secciones`;
+CREATE TABLE `secciones` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `grado_id` int(11) DEFAULT NULL,
+  `letra` varchar(5) NOT NULL,
+  `anio_escolar` varchar(9) DEFAULT '2025-2026',
+  `turno` enum('mañana','tarde') DEFAULT 'mañana',
+  `capacidad` int(11) DEFAULT 30,
+  `docente_guia_id` int(11) DEFAULT NULL,
+  `aula` varchar(20) DEFAULT NULL,
+  `activo` tinyint(1) DEFAULT 1,
+  `fecha_creacion` timestamp NOT NULL DEFAULT current_timestamp(),
+  `fecha_actualizacion` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=7 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_spanish2_ci;
 
---
--- AUTO_INCREMENT de la tabla `secciones`
---
-ALTER TABLE `secciones`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
+-- Datos de `secciones` (6 filas)
+INSERT INTO `secciones` (`id`, `grado_id`, `letra`, `anio_escolar`, `turno`, `capacidad`, `docente_guia_id`, `aula`, `activo`, `fecha_creacion`, `fecha_actualizacion`) VALUES ('1', '1', 'A', '2025-2026', 'mañana', '30', '2', 'Aula 101', '1', '2026-07-25 12:22:44', '2026-07-25 12:22:44');
+INSERT INTO `secciones` (`id`, `grado_id`, `letra`, `anio_escolar`, `turno`, `capacidad`, `docente_guia_id`, `aula`, `activo`, `fecha_creacion`, `fecha_actualizacion`) VALUES ('2', '1', 'B', '2025-2026', 'tarde', '25', '3', 'Aula 102', '1', '2026-07-25 12:22:44', '2026-07-25 12:22:44');
+INSERT INTO `secciones` (`id`, `grado_id`, `letra`, `anio_escolar`, `turno`, `capacidad`, `docente_guia_id`, `aula`, `activo`, `fecha_creacion`, `fecha_actualizacion`) VALUES ('3', '2', 'A', '2025-2026', 'mañana', '28', '2', 'Aula 201', '1', '2026-07-25 12:22:44', '2026-07-25 12:22:44');
+INSERT INTO `secciones` (`id`, `grado_id`, `letra`, `anio_escolar`, `turno`, `capacidad`, `docente_guia_id`, `aula`, `activo`, `fecha_creacion`, `fecha_actualizacion`) VALUES ('4', '2', 'B', '2025-2026', 'tarde', '26', '3', 'Aula 202', '1', '2026-07-25 12:22:44', '2026-07-25 12:22:44');
+INSERT INTO `secciones` (`id`, `grado_id`, `letra`, `anio_escolar`, `turno`, `capacidad`, `docente_guia_id`, `aula`, `activo`, `fecha_creacion`, `fecha_actualizacion`) VALUES ('5', '3', 'A', '2025-2026', 'mañana', '30', '2', 'Aula 301', '1', '2026-07-25 12:22:44', '2026-07-25 12:22:44');
+INSERT INTO `secciones` (`id`, `grado_id`, `letra`, `anio_escolar`, `turno`, `capacidad`, `docente_guia_id`, `aula`, `activo`, `fecha_creacion`, `fecha_actualizacion`) VALUES ('6', '3', 'B', '2025-2026', 'tarde', '30', '0', 'Aula 302', '1', '2026-10-10 15:23:17', '2026-10-10 15:23:17');
 
---
--- AUTO_INCREMENT de la tabla `seccion_materias`
---
-ALTER TABLE `seccion_materias`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=9;
 
---
--- AUTO_INCREMENT de la tabla `usuarios`
---
-ALTER TABLE `usuarios`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
+-- --------------------------------------------
+-- Estructura de tabla `usuarios`
+-- --------------------------------------------
+DROP TABLE IF EXISTS `usuarios`;
+CREATE TABLE `usuarios` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `username` varchar(50) DEFAULT NULL,
+  `cedula` varchar(20) NOT NULL,
+  `nombres` varchar(100) NOT NULL,
+  `apellidos` varchar(100) NOT NULL,
+  `email` varchar(100) DEFAULT NULL,
+  `telefono` varchar(20) DEFAULT NULL,
+  `rol` enum('admin','docente','secretario','estudiante','representante') DEFAULT 'docente',
+  `password` varchar(255) NOT NULL,
+  `activo` tinyint(1) DEFAULT 1,
+  `fecha_creacion` timestamp NOT NULL DEFAULT current_timestamp(),
+  `ultimo_acceso` timestamp NULL DEFAULT NULL,
+  `token_recuperacion` varchar(255) DEFAULT NULL,
+  `token_expiracion` datetime DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=22 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_spanish2_ci;
 
---
--- Restricciones para tablas volcadas
---
+-- Datos de `usuarios` (13 filas)
+INSERT INTO `usuarios` (`id`, `username`, `cedula`, `nombres`, `apellidos`, `email`, `telefono`, `rol`, `password`, `activo`, `fecha_creacion`, `ultimo_acceso`, `token_recuperacion`, `token_expiracion`) VALUES ('1', 'admin', 'V-90000001', 'Usuario', 'Demo 1', 'usuario1@example.local', '0412-0000001', 'admin', '$2y$10$BNVyghURqjwJ8BBBAHOyFuNYJHC0.GbnL7aN.qD0hkqUibdsHz9ma', '1', '2026-07-25 12:22:44', NULL, NULL, NULL);
+INSERT INTO `usuarios` (`id`, `username`, `cedula`, `nombres`, `apellidos`, `email`, `telefono`, `rol`, `password`, `activo`, `fecha_creacion`, `ultimo_acceso`, `token_recuperacion`, `token_expiracion`) VALUES ('2', 'usuario2', 'V-90000002', 'Usuario', 'Demo 2', 'usuario2@example.local', '0412-0000002', 'admin', '$2y$10$BNVyghURqjwJ8BBBAHOyFuNYJHC0.GbnL7aN.qD0hkqUibdsHz9ma', '1', '2026-07-25 12:22:44', NULL, NULL, NULL);
+INSERT INTO `usuarios` (`id`, `username`, `cedula`, `nombres`, `apellidos`, `email`, `telefono`, `rol`, `password`, `activo`, `fecha_creacion`, `ultimo_acceso`, `token_recuperacion`, `token_expiracion`) VALUES ('3', 'usuario3', 'V-90000003', 'Usuario', 'Demo 3', 'usuario3@example.local', '0412-0000003', 'docente', '$2y$10$BNVyghURqjwJ8BBBAHOyFuNYJHC0.GbnL7aN.qD0hkqUibdsHz9ma', '1', '2026-07-25 12:22:44', NULL, NULL, NULL);
+INSERT INTO `usuarios` (`id`, `username`, `cedula`, `nombres`, `apellidos`, `email`, `telefono`, `rol`, `password`, `activo`, `fecha_creacion`, `ultimo_acceso`, `token_recuperacion`, `token_expiracion`) VALUES ('4', 'usuario4', 'V-90000004', 'Usuario', 'Demo 4', 'usuario4@example.local', '0412-0000004', 'docente', '$2y$10$BNVyghURqjwJ8BBBAHOyFuNYJHC0.GbnL7aN.qD0hkqUibdsHz9ma', '1', '2026-07-25 12:22:44', NULL, NULL, NULL);
+INSERT INTO `usuarios` (`id`, `username`, `cedula`, `nombres`, `apellidos`, `email`, `telefono`, `rol`, `password`, `activo`, `fecha_creacion`, `ultimo_acceso`, `token_recuperacion`, `token_expiracion`) VALUES ('5', 'usuario5', 'V-90000005', 'Usuario', 'Demo 5', 'usuario5@example.local', '0412-0000005', 'estudiante', '$2y$10$BNVyghURqjwJ8BBBAHOyFuNYJHC0.GbnL7aN.qD0hkqUibdsHz9ma', '1', '2026-10-13 18:00:21', NULL, NULL, NULL);
+INSERT INTO `usuarios` (`id`, `username`, `cedula`, `nombres`, `apellidos`, `email`, `telefono`, `rol`, `password`, `activo`, `fecha_creacion`, `ultimo_acceso`, `token_recuperacion`, `token_expiracion`) VALUES ('8', 'usuario8', 'V-90000008', 'Usuario', 'Demo 8', 'usuario8@example.local', '0412-0000008', 'estudiante', '$2y$10$BNVyghURqjwJ8BBBAHOyFuNYJHC0.GbnL7aN.qD0hkqUibdsHz9ma', '1', '2026-10-15 15:11:20', NULL, NULL, NULL);
+INSERT INTO `usuarios` (`id`, `username`, `cedula`, `nombres`, `apellidos`, `email`, `telefono`, `rol`, `password`, `activo`, `fecha_creacion`, `ultimo_acceso`, `token_recuperacion`, `token_expiracion`) VALUES ('9', 'usuario9', 'V-90000009', 'Usuario', 'Demo 9', 'usuario9@example.local', '0412-0000009', 'representante', '$2y$10$BNVyghURqjwJ8BBBAHOyFuNYJHC0.GbnL7aN.qD0hkqUibdsHz9ma', '0', '2026-10-18 18:39:08', NULL, NULL, NULL);
+INSERT INTO `usuarios` (`id`, `username`, `cedula`, `nombres`, `apellidos`, `email`, `telefono`, `rol`, `password`, `activo`, `fecha_creacion`, `ultimo_acceso`, `token_recuperacion`, `token_expiracion`) VALUES ('12', 'usuario12', 'V-90000012', 'Usuario', 'Demo 12', 'usuario12@example.local', '0412-0000012', 'docente', '$2y$10$BNVyghURqjwJ8BBBAHOyFuNYJHC0.GbnL7aN.qD0hkqUibdsHz9ma', '1', '2026-10-20 19:13:41', NULL, NULL, NULL);
+INSERT INTO `usuarios` (`id`, `username`, `cedula`, `nombres`, `apellidos`, `email`, `telefono`, `rol`, `password`, `activo`, `fecha_creacion`, `ultimo_acceso`, `token_recuperacion`, `token_expiracion`) VALUES ('13', 'usuario13', 'V-90000013', 'Usuario', 'Demo 13', 'usuario13@example.local', '0412-0000013', 'docente', '$2y$10$BNVyghURqjwJ8BBBAHOyFuNYJHC0.GbnL7aN.qD0hkqUibdsHz9ma', '0', '2026-11-01 12:41:25', NULL, NULL, NULL);
+INSERT INTO `usuarios` (`id`, `username`, `cedula`, `nombres`, `apellidos`, `email`, `telefono`, `rol`, `password`, `activo`, `fecha_creacion`, `ultimo_acceso`, `token_recuperacion`, `token_expiracion`) VALUES ('14', 'usuario14', 'V-90000014', 'Usuario', 'Demo 14', 'usuario14@example.local', '0412-0000014', 'docente', '$2y$10$BNVyghURqjwJ8BBBAHOyFuNYJHC0.GbnL7aN.qD0hkqUibdsHz9ma', '1', '2026-11-01 17:36:41', NULL, NULL, NULL);
+INSERT INTO `usuarios` (`id`, `username`, `cedula`, `nombres`, `apellidos`, `email`, `telefono`, `rol`, `password`, `activo`, `fecha_creacion`, `ultimo_acceso`, `token_recuperacion`, `token_expiracion`) VALUES ('15', 'usuario15', 'V-90000015', 'Usuario', 'Demo 15', 'usuario15@example.local', '0412-0000015', 'estudiante', '$2y$10$BNVyghURqjwJ8BBBAHOyFuNYJHC0.GbnL7aN.qD0hkqUibdsHz9ma', '1', '2026-11-01 17:49:46', NULL, NULL, NULL);
+INSERT INTO `usuarios` (`id`, `username`, `cedula`, `nombres`, `apellidos`, `email`, `telefono`, `rol`, `password`, `activo`, `fecha_creacion`, `ultimo_acceso`, `token_recuperacion`, `token_expiracion`) VALUES ('16', 'usuario16', 'V-90000016', 'Usuario', 'Demo 16', 'usuario16@example.local', '0412-0000016', 'estudiante', '$2y$10$BNVyghURqjwJ8BBBAHOyFuNYJHC0.GbnL7aN.qD0hkqUibdsHz9ma', '1', '2026-11-02 12:29:35', NULL, NULL, NULL);
+INSERT INTO `usuarios` (`id`, `username`, `cedula`, `nombres`, `apellidos`, `email`, `telefono`, `rol`, `password`, `activo`, `fecha_creacion`, `ultimo_acceso`, `token_recuperacion`, `token_expiracion`) VALUES ('17', 'usuario17', 'V-90000017', 'Usuario', 'Demo 17', 'usuario17@example.local', '0412-0000017', 'representante', '$2y$10$BNVyghURqjwJ8BBBAHOyFuNYJHC0.GbnL7aN.qD0hkqUibdsHz9ma', '1', '2026-11-02 12:29:35', NULL, NULL, NULL);
 
---
--- Filtros para la tabla `estudiantes`
---
-ALTER TABLE `estudiantes`
-  ADD CONSTRAINT `estudiantes_ibfk_1` FOREIGN KEY (`seccion_id`) REFERENCES `secciones` (`id`) ON DELETE SET NULL;
 
---
--- Filtros para la tabla `notas`
---
-ALTER TABLE `notas`
-  ADD CONSTRAINT `notas_ibfk_1` FOREIGN KEY (`estudiante_id`) REFERENCES `estudiantes` (`id`) ON DELETE CASCADE,
-  ADD CONSTRAINT `notas_ibfk_2` FOREIGN KEY (`seccion_materia_id`) REFERENCES `seccion_materias` (`id`) ON DELETE CASCADE;
-
---
--- Filtros para la tabla `secciones`
---
-ALTER TABLE `secciones`
-  ADD CONSTRAINT `secciones_ibfk_1` FOREIGN KEY (`grado_id`) REFERENCES `grados` (`id`) ON DELETE CASCADE,
-  ADD CONSTRAINT `secciones_ibfk_2` FOREIGN KEY (`docente_guia_id`) REFERENCES `usuarios` (`id`) ON DELETE SET NULL;
-
---
--- Filtros para la tabla `seccion_materias`
---
-ALTER TABLE `seccion_materias`
-  ADD CONSTRAINT `seccion_materias_ibfk_1` FOREIGN KEY (`seccion_id`) REFERENCES `secciones` (`id`) ON DELETE CASCADE,
-  ADD CONSTRAINT `seccion_materias_ibfk_2` FOREIGN KEY (`materia_id`) REFERENCES `materias` (`id`) ON DELETE CASCADE,
-  ADD CONSTRAINT `seccion_materias_ibfk_3` FOREIGN KEY (`docente_id`) REFERENCES `usuarios` (`id`) ON DELETE SET NULL;
-
-COMMIT;
-
-/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
-/*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
-/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
+SET FOREIGN_KEY_CHECKS = 1;
+-- ============================================
+-- FIN DEL RESPALDO
+-- ============================================

@@ -74,8 +74,8 @@ if (($_POST['action'] ?? '') == 'crear_estudiante') {
                 $anio_nacimiento = (int)date('Y', strtotime($fecha_nacimiento));
                 $anio_actual = (int)date('Y');
                 $edad = $anio_actual - $anio_nacimiento;
-                if ($edad < 10 || $edad > 20) {
-                    throw new Exception("La fecha de nacimiento no es válida. El estudiante debe tener entre 10 y 20 años.");
+                if ($edad < EDAD_MINIMA_ESTUDIANTE || $edad > EDAD_MAXIMA_ESTUDIANTE) {
+                    throw new Exception("La fecha de nacimiento no es válida. El estudiante debe tener entre " . EDAD_MINIMA_ESTUDIANTE . " y " . EDAD_MAXIMA_ESTUDIANTE . " años.");
                 }
             }
 

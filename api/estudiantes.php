@@ -5,10 +5,10 @@
 require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/../functions.php';
 
-// Opcional: Proteger la ruta si tienes un sistema de autenticación
-// requireAuth(); 
+// 2. Solo personal autorizado puede consultar listados de estudiantes
+requireApiRole(['admin', 'docente', 'secretario']);
 
-// 2. Verificar que el método HTTP sea GET
+// 3. Verificar que el método HTTP sea GET
 if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
     jsonResponse(false, 'Método no permitido.', [], 405);
 }

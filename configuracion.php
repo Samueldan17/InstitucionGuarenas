@@ -95,62 +95,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['cambiar_estado_lapso'
 }
 
 // =========================================================
-// EXPORTAR BASE DE DATOS (RESPALDO)
+// EXPORTAR BASE DE DATOS (RESPALDO COMPLETO)
 // =========================================================
 if (isset($_GET['accion']) && $_GET['accion'] === 'backup') {
-    $tablas = ['usuarios', 'estudiantes', 'grados', 'materias', 'secciones', 'seccion_materias', 'notas', 'logs', 'configuracion'];
     $fecha = date('Y-m-d_H-i-s');
     $nombre_archivo = "respaldo_sigeb_" . $fecha . ".sql";
     
-    header('Content-Type: application/sql');
+    header('Content-Type: application/sql; charset=utf-8');
     header('Content-Disposition: attachment; filename="' . $nombre_archivo . '"');
     
-    $output = "-- ============================================\n";
-    $output .= "-- RESPALDO SIGEB-G\n";
-    $output .= "-- Institución: " . APP_NAME . "\n";
-    $output .= "-- Fecha: " . date('d/m/Y H:i:s') . "\n";
-    $output .= "-- Responsable: " . getConfig($db, 'responsable_sistema', 'N/A') . "\n";
-    $output .= "-- ============================================\n\n";
-    $output .= "SET SQL_MODE = \"NO_AUTO_VALUE_ON_ZERO\";\n";
-    $output .= "SET time_zone = \"+00:00\";\n\n";
-    $output .= "DROP DATABASE IF EXISTS `" . DB_NAME . "`;\n";
-    $output .= "CREATE DATABASE IF NOT EXISTS `" . DB_NAME . "` CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;\n";
-    $output .= "USE `" . DB_NAME . "`;\n\n";
-    
-    foreach ($tablas as $tabla) {
-        try {
-            $stmt = $db->query("SHOW CREATE TABLE `$tabla`");
-            $crear = $stmt->fetch();
-            $output .= "\n-- --------------------------------------------\n";
-            $output .= "-- Estructura de tabla `$tabla`\n";
-            $output .= "-- --------------------------------------------\n";
-            $output .= "DROP TABLE IF EXISTS `$tabla`;\n";
-            $output .= $crear['Create Table'] . ";\n\n";
-            
-            $stmt = $db->query("SELECT * FROM `$tabla`");
-            $filas = $stmt->fetchAll();
-            if (count($filas) > 0) {
-                $output .= "-- Datos de `$tabla`\n";
-                foreach ($filas as $fila) {
-                    $columnas = array_keys($fila);
-                    $valores = array_map(function($v) use ($db) {
-                        if ($v === null) return 'NULL';
-                        return $db->quote($v);
-                    }, array_values($fila));
-                    $output .= "INSERT INTO `$tabla` (`" . implode("`, `", $columnas) . "`) VALUES (" . implode(", ", $valores) . ");\n";
-                }
-                $output .= "\n";
-            }
-        } catch (PDOException $e) {
-            $output .= "-- Error en tabla $tabla: " . $e->getMessage() . "\n";
-        }
-    }
-    $output .= "\n-- ============================================\n";
-    $output .= "-- FIN DEL RESPALDO\n";
-    $output .= "-- ============================================\n";
+    $output = generarRespaldoBaseDatos($db);
     
     setConfig($db, 'ultimo_respaldo', date('Y-m-d H:i:s'));
-    registrarLog('backup_bd', 'configuracion', null, "Respaldo descargado");
+    registrarLog('backup_bd', 'configuracion', null, "Respaldo completo descargado");
     echo $output;
     exit;
 }

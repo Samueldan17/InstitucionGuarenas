@@ -1,0 +1,7 @@
+<?php
+// Copie este archivo como config.local.php y ajuste las credenciales.
+// No versione config.local.php: contiene la contraseña de la base de datos.
+define('DB_HOST', 'localhost');
+define('DB_NAME', 'sistema_gestion_escolar');
+define('DB_USER', 'sigeb_app');
+define('DB_PASS', 'CAMBIA_ESTA_CONTRASENA');

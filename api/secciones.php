@@ -3,7 +3,8 @@
 
 require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/../functions.php';
-// requireAuth(); 
+
+requireApiRole(['admin', 'docente', 'secretario']);
 
 if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
     jsonResponse(false, 'Método no permitido.', [], 405);

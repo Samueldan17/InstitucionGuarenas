@@ -283,6 +283,69 @@ function setConfig($db, $clave, $valor) {
     }
 }
 
+function generarRespaldoBaseDatos(PDO $db) {
+    $tablas = $db->query("SHOW FULL TABLES WHERE Table_type = 'BASE TABLE'")->fetchAll(PDO::FETCH_COLUMN);
+    sort($tablas);
+
+    $output = "-- ============================================\n";
+    $output .= "-- RESPALDO SIGEB-G\n";
+    $output .= "-- Institución: " . APP_NAME . "\n";
+    $output .= "-- Fecha: " . date('d/m/Y H:i:s') . "\n";
+    $output .= "-- Responsable: " . getConfig($db, 'responsable_sistema', 'N/A') . "\n";
+    $output .= "-- ============================================\n\n";
+    $output .= "SET SQL_MODE = \"NO_AUTO_VALUE_ON_ZERO\";\n";
+    $output .= "SET time_zone = \"+00:00\";\n";
+    $output .= "SET NAMES utf8mb4;\n";
+    $output .= "SET FOREIGN_KEY_CHECKS = 0;\n\n";
+    $output .= "DROP DATABASE IF EXISTS `" . DB_NAME . "`;\n";
+    $output .= "CREATE DATABASE IF NOT EXISTS `" . DB_NAME . "` CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;\n";
+    $output .= "USE `" . DB_NAME . "`;\n";
+
+    foreach ($tablas as $tabla) {
+        $tablaSegura = str_replace('`', '``', $tabla);
+        try {
+            $stmt = $db->query("SHOW CREATE TABLE `$tablaSegura`");
+            $crear = $stmt->fetch(PDO::FETCH_ASSOC);
+            $createSql = $crear['Create Table'] ?? '';
+            if ($createSql === '') continue;
+
+            $output .= "\n-- --------------------------------------------\n";
+            $output .= "-- Estructura de tabla `$tabla`\n";
+            $output .= "-- --------------------------------------------\n";
+            $output .= "DROP TABLE IF EXISTS `$tablaSegura`;\n";
+            $output .= $createSql . ";\n\n";
+
+            $filas = $db->query("SELECT * FROM `$tablaSegura`")->fetchAll();
+            if (count($filas) > 0) {
+                $columnas = array_keys($filas[0]);
+                $columnasSeguras = '`' . implode('`, `', array_map(function ($c) {
+                    return str_replace('`', '``', $c);
+                }, $columnas)) . '`';
+
+                $output .= "-- Datos de `$tabla` (" . count($filas) . " filas)\n";
+                foreach ($filas as $fila) {
+                    $valores = [];
+                    foreach ($columnas as $columna) {
+                        $valor = $fila[$columna];
+                        $valores[] = $valor === null ? 'NULL' : $db->quote((string)$valor);
+                    }
+                    $output .= "INSERT INTO `$tablaSegura` ($columnasSeguras) VALUES (" . implode(', ', $valores) . ");\n";
+                }
+                $output .= "\n";
+            }
+        } catch (PDOException $e) {
+            $output .= "-- Error en tabla `$tabla`: " . $e->getMessage() . "\n";
+        }
+    }
+
+    $output .= "\nSET FOREIGN_KEY_CHECKS = 1;\n";
+    $output .= "-- ============================================\n";
+    $output .= "-- FIN DEL RESPALDO\n";
+    $output .= "-- ============================================\n";
+
+    return $output;
+}
+
 function validarPasswordSegura($password) {
     if (strlen($password) < 8) return "La contraseña debe tener al menos 8 caracteres.";
     if (!preg_match('/[A-Z]/', $password)) return "La contraseña debe incluir al menos una letra MAYÚSCULA.";

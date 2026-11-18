@@ -7,20 +7,28 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
+// Credenciales locales opcionales (archivo no versionado)
+$localConfigFile = __DIR__ . '/config.local.php';
+if (is_file($localConfigFile)) {
+    require_once $localConfigFile;
+}
+
 // =========================================================
 // 1. CONFIGURACIÓN DE BASE DE DATOS
 // =========================================================
-define('DB_HOST', 'localhost');
-define('DB_NAME', 'sistema_gestion_escolar');
-define('DB_USER', 'root');
-define('DB_PASS', '');
-define('DB_CHARSET', 'utf8mb4');
+if (!defined('DB_HOST')) define('DB_HOST', 'localhost');
+if (!defined('DB_NAME')) define('DB_NAME', 'sistema_gestion_escolar');
+if (!defined('DB_USER')) define('DB_USER', 'root');
+if (!defined('DB_PASS')) define('DB_PASS', '');
+if (!defined('DB_CHARSET')) define('DB_CHARSET', 'utf8mb4');
 
 // =========================================================
 // 2. CONFIGURACIÓN DE LA APLICACIÓN
 // =========================================================
 define('APP_NAME', 'U.E.N. Guarenas');
 define('APP_VERSION', '4.0');
+define('EDAD_MINIMA_ESTUDIANTE', 10);
+define('EDAD_MAXIMA_ESTUDIANTE', 20);
 
 $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
 $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
@@ -104,7 +112,30 @@ function requireAuth() {
 }
 
 // =========================================================
-// 7. CSRF (Tokens)
+// 7. AUTENTICACIÓN PARA ENDPOINTS JSON
+// =========================================================
+function requireApiAuth() {
+    if (empty($_SESSION['usuario_id']) || empty($_SESSION['usuario_nombre'])) {
+        jsonResponse(false, 'No autorizado. Inicie sesión nuevamente.', [], 401);
+    }
+    if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity'] > SESSION_TIMEOUT)) {
+        session_unset();
+        session_destroy();
+        jsonResponse(false, 'La sesión ha expirado.', [], 401);
+    }
+    $_SESSION['last_activity'] = time();
+}
+
+function requireApiRole(array $roles) {
+    requireApiAuth();
+    $rol = $_SESSION['usuario_rol'] ?? '';
+    if (!in_array($rol, $roles, true)) {
+        jsonResponse(false, 'Acceso denegado para este rol.', [], 403);
+    }
+}
+
+// =========================================================
+// 8. CSRF (Tokens)
 // =========================================================
 function generateCSRFToken() {
     if (empty($_SESSION['csrf_token'])) {
